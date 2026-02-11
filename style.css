@@ -1,0 +1,17 @@
+#orbitdensity {
+    display: flex;
+    justify-content: center; /* Horizontal centering */
+    align-items: center;     /* Vertical centering */
+    width: 100%;             /* Take up full width of the main container */
+    margin: 2rem 0;          /* Add some breathing room top/bottom */
+}
+
+#orbitdensity svg {
+    display: block;          /* Removes extra whitespace at the bottom */
+    max-width: 100%;         /* Ensures it doesn't overflow on small screens */
+    height: auto;            /* Maintains aspect ratio */
+}
+.orbit-arc { fill: none; stroke: #2a2d35; stroke-dasharray: 4; stroke-width: 1px; }
+.earth { fill: #1a73e8; stroke: #8ab4f8; stroke-width: 2px; }
+.satellite { fill: #00f2ff; opacity: 0.6; stroke: #fff; stroke-width: 0.2px; }
+.label { font-size: 11px; fill: #666; font-weight: bold; }
