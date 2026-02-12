@@ -53,16 +53,16 @@ const VALID_CONTINENTS = [
 const CONTINENT_VIEWS = {
   Asia: { center: [75, 50], scale: 420 },
   Europe: { center: [18, 51], scale: 600 },
-  Africa: { center: [-30, 20], scale: 700 },
+  Africa: { center: [20, 20], scale: 800 },
   "North America": { center: [-100, 40], scale: 420 },
-  "South America": { center: [-60, -18], scale: 470 },
+  "South America": { center: [-60, -18], scale: 800 },
   Oceania: { center: [145, -10], scale: 520 },
 };
 
 const CONTINENT_LABELS = [
-  { name: "Asia", lonLat: [90, 35] },
+  { name: "Asia", lonLat: [90, 55] },
   { name: "Europe", lonLat: [15, 52] },
-  { name: "Africa", lonLat: [20, 5] },
+  { name: "Africa", lonLat: [10, 10] },
   { name: "North America", lonLat: [-105, 45] },
   { name: "South America", lonLat: [-60, -20] },
   { name: "Oceania", lonLat: [140, -25] },
@@ -270,7 +270,10 @@ export async function renderLaunchMap({
       .filter(Boolean)
       .filter(
         (d) =>
-          d.x >= -140 && d.x <= width + 140 && d.y >= -100 && d.y <= height + 100,
+          d.x >= -140 &&
+          d.x <= width + 140 &&
+          d.y >= -100 &&
+          d.y <= height + 100,
       );
 
     const siteCounts = buildSiteCounts(rows, continent);
@@ -342,7 +345,12 @@ export async function renderLaunchMap({
     const mapPlaneNode = gPlane.node();
     const overlayContinentLabels = projectedContinentLabels
       .map((d) => {
-        const anchored = planeLocalPointToSvgViaCTM(mapPlaneNode, svgNode, d.x, d.y);
+        const anchored = planeLocalPointToSvgViaCTM(
+          mapPlaneNode,
+          svgNode,
+          d.x,
+          d.y,
+        );
         return anchored ? { ...d, x: anchored.x, y: anchored.y } : null;
       })
       .filter(Boolean);
