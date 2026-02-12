@@ -53,11 +53,20 @@ const VALID_CONTINENTS = [
 const CONTINENT_VIEWS = {
   Asia: { center: [75, 50], scale: 420 },
   Europe: { center: [18, 51], scale: 600 },
-  Africa: { center: [-30, 20], scale: 700 },
+  Africa: { center: [20, 20], scale: 800 },
   "North America": { center: [-100, 40], scale: 420 },
-  "South America": { center: [-60, -18], scale: 470 },
+  "South America": { center: [-60, -18], scale: 800 },
   Oceania: { center: [145, -10], scale: 520 },
 };
+
+const CONTINENT_LABELS = [
+  { name: "Asia", lonLat: [90, 55] },
+  { name: "Europe", lonLat: [15, 52] },
+  { name: "Africa", lonLat: [10, 10] },
+  { name: "North America", lonLat: [-105, 45] },
+  { name: "South America", lonLat: [-60, -20] },
+  { name: "Oceania", lonLat: [140, -25] },
+];
 
 // Easy-to-tweak camera defaults.
 const CAMERA = {
@@ -98,6 +107,19 @@ function waitForTransforms() {
   return new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   );
+}
+
+function planeLocalPointToSvgViaCTM(planeNode, svgNode, localX, localY) {
+  const planeCTM = planeNode.getScreenCTM();
+  const svgCTM = svgNode.getScreenCTM();
+  if (!planeCTM || !svgCTM) return null;
+
+  const pt = svgNode.createSVGPoint();
+  pt.x = localX;
+  pt.y = localY;
+  const screenPt = pt.matrixTransform(planeCTM);
+  const svgPt = screenPt.matrixTransform(svgCTM.inverse());
+  return { x: svgPt.x, y: svgPt.y };
 }
 
 function dotLocalPointToSvgViaCTM(dotNode, svgNode, localX, localY) {
@@ -240,6 +262,20 @@ export async function renderLaunchMap({
       .attr("stroke", "#87a786")
       .attr("stroke-width", 0.8);
 
+    const projectedContinentLabels = CONTINENT_LABELS.map((label) => {
+      const point = projection(label.lonLat);
+      if (!point) return null;
+      return { ...label, x: point[0], y: point[1] };
+    })
+      .filter(Boolean)
+      .filter(
+        (d) =>
+          d.x >= -140 &&
+          d.x <= width + 140 &&
+          d.y >= -100 &&
+          d.y <= height + 100,
+      );
+
     const siteCounts = buildSiteCounts(rows, continent);
     const missingCodes = [];
 
@@ -305,6 +341,37 @@ export async function renderLaunchMap({
 
       if (base) baseBySite.set(d.site, base);
     });
+
+    const mapPlaneNode = gPlane.node();
+    const overlayContinentLabels = projectedContinentLabels
+      .map((d) => {
+        const anchored = planeLocalPointToSvgViaCTM(
+          mapPlaneNode,
+          svgNode,
+          d.x,
+          d.y,
+        );
+        return anchored ? { ...d, x: anchored.x, y: anchored.y } : null;
+      })
+      .filter(Boolean);
+
+    gLabelsOverlay
+      .selectAll("text.continent-label")
+      .data(overlayContinentLabels, (d) => d.name)
+      .join("text")
+      .attr("class", "continent-label")
+      .attr("x", (d) => d.x)
+      .attr("y", (d) => d.y)
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .attr("font-size", 16)
+      .attr("font-weight", 700)
+      .attr("fill", "#1f2937")
+      .attr("opacity", (d) => (d.name === continent ? 1 : 0.82))
+      .attr("stroke", "#f8fbff")
+      .attr("stroke-width", 3)
+      .attr("paint-order", "stroke")
+      .text((d) => d.name);
 
     const barsData = projectedSites
       .map((d) => {
