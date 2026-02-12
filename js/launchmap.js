@@ -51,12 +51,12 @@ const VALID_CONTINENTS = [
 ];
 
 const CONTINENT_VIEWS = {
-  Asia: { center: [95, 28], scale: 420 },
+  Asia: { center: [75, 50], scale: 420 },
   Europe: { center: [18, 51], scale: 600 },
-  Africa: { center: [20, 5], scale: 420 },
+  Africa: { center: [-30, 20], scale: 700 },
   "North America": { center: [-100, 40], scale: 420 },
   "South America": { center: [-60, -18], scale: 470 },
-  Oceania: { center: [145, -23], scale: 520 },
+  Oceania: { center: [145, -10], scale: 520 },
 };
 
 // Easy-to-tweak camera defaults.
@@ -137,7 +137,7 @@ export async function renderLaunchMap({
   worldTopoPath = "data/land-110m.json",
   defaultContinent = "Asia",
   width = 1100,
-  height = 800,
+  height = 820,
 } = {}) {
   const container = d3.select(containerSelector);
   const dropdown = d3.select(dropdownSelector);
@@ -280,7 +280,7 @@ export async function renderLaunchMap({
       .attr("class", "site")
       .attr("cx", (d) => d.x)
       .attr("cy", (d) => d.y)
-      .attr("r", 5)
+      .attr("r", 6)
       .attr("fill", "#72de8f")
       .attr("stroke", "#2f8d4d")
       .attr("stroke-width", 1);
@@ -380,7 +380,7 @@ export async function renderLaunchMap({
       .attr("cy", (d) => d.baseY)
       .attr("r", 2.4)
       .attr("fill", "#2f8d4d")
-      .attr("opacity", 0.9);
+      .attr("opacity", 0.5);
 
     gLabelsOverlay
       .selectAll("text.count-label")
