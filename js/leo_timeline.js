@@ -29,7 +29,6 @@ const tCy = height + 50;
 const dCy = height / 2;
 const timelineY = 820;
 
-const starLayer = svg.append("g");
 const densityLayer = svg.append("g").style("opacity", 0);
 const globalAxisLayer = svg.append("g").style("opacity", 0);
 const satLayer = svg.append("g");
@@ -113,6 +112,14 @@ async function init() {
     .attr("x", width / 2).attr("y", 160).attr("text-anchor", "middle")
     .style("font-size", "20px").style("fill", "#ffd166").text("0 Satellites");
 
+  const labelText = uiLayer.append("text")
+    .attr("x", 0).attr("y", 100).attr("text-anchor", "middle")
+    .style("font-size", "30px").style("fill", "white").text("Payloads in orbit 1957-2025");
+
+  const labelTextB = uiLayer.append("text")
+    .attr("x", 0).attr("y", 100).attr("text-anchor", "middle").attr("opacity", 0)
+    .style("font-size", "30px").style("fill", "white").text("Orbital Density 2026");
+
   const globalAxis = d3.axisLeft(rScaleGlobal).ticks(6).tickFormat(d => d === 0 ? "" : `${d}km`);
   globalAxisLayer.append("g").call(globalAxis).style("color", "#ff9a76");
 
@@ -156,6 +163,14 @@ async function init() {
       .slice(0, targetCount);
 
     countText.text(`${activeSats.length.toLocaleString()} Satellites`).style("opacity", 1 - zoomP);
+    labelText
+      .style("opacity", 1 - (zoomP * 2))
+      .attr("transform", `translate(0, ${-zoomP * 20})`);
+
+    labelTextB
+      .style("opacity", (zoomP - 0.5) * 2)
+      .attr("transform", `translate(0, ${(1 - zoomP) * 20})`);
+
 
     const drawnSats = activeSats.slice(0, Math.max(targetCount / 40, 1));
     const circles = satLayer.selectAll("circle").data(drawnSats, d => d.id);
