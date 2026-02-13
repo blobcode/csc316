@@ -1,47 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSC316 Super Space Travellers</title> 
+    <title>CSC316 Super Space Travellers</title>
     <link rel=stylesheet href=https://unpkg.com/missing.css@1.2.0>
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
-    <main>
     <header>
-    <h1>Super Cool Prototype Visualizations</h1>
-    <p>
-    <i>Lucas Helme, Daniel Benavides-Alvarez, Syed Salman Husainie,[your name here], ...</i>
-    </p>
+        <h1>Super Cool Prototype Visualizations</h1>
+        <p>
+            <i>Lucas Helme, Daniel Benavides-Alvarez, Syed Salman Husainie,[your name here], ...</i>
+        </p>
     </header>
     <p>[filler]</p>
-    <div id="container"></div>
-    <script type="module" src="js/main.js"></script>
-    <p>[filler]</p>
-    <p>VIS HERE</p>
 
-        <h2>Satellites by manufacturer / country</h2>
-        <label for="ranking-type">Plot by: </label>
-            <select id="ranking-type">
-                <option value="manufacturer" selected>Manufacturer</option>
-                <option value="owner">Country</option>
-            </select>
-        <div class="slider-row">
-            <label for="year-slider">Last year shown: <span id="year-slider-value">All</span></label>
-            <input id="year-slider" type="range" step="1">
-        </div>
-        <div id="manufacturer" class="center"></div>
+    <h2>Satellites by manufacturer / country</h2>
+    <label for="ranking-type">Plot by: </label>
+    <select id="ranking-type">
+        <option value="manufacturer" selected>Manufacturer</option>
+        <option value="owner">Country</option>
+    </select>
+    <div class="slider-row">
+        <label for="year-slider">Last year shown: <span id="year-slider-value">All</span></label>
+        <input id="year-slider" type="range" step="1">
+    </div>
+    <div id="manufacturer" class="center"></div>
     <script type="module" src="js/manufacturer.js"></script>
 
-    <h2>orbital density</h2>
-    <div id="orbitdensity" class="center"></div>
-    <script type="module" src="js/orbitdensity.js"></script>
-    
     <h2>Launch Sites</h2>
     <div class="controls">
-    <label for="continent">Continent:</label>
-    <select id="continent"></select>
+        <label for="continent">Continent:</label>
+        <select id="continent"></select>
     </div>
     <div id="launchmap" class="center"></div>
 
@@ -49,11 +42,12 @@
     <p>Slide through years to see how low Earth orbit becomes more crowded.</p>
     <div id="leo-timeline" class="center"></div>
     <script type="module" src="js/leo_timeline.js"></script>
-    </main>
+
     <footer>
         <p>
             A CSC316 Project at the University of Toronto.
         </p>
     </footer>
 </body>
+
 </html>

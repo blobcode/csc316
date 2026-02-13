@@ -1,349 +1,191 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-const mount = d3.select("#leo-timeline");
-if (mount.empty()) {
-  throw new Error("Missing #leo-timeline container");
-}
+const mount = d3.select("#leo-timeline")
+  .style("position", "relative")
+  .style("height", "900vh")
+  .style("background", "#05070a")
+  .style("margin-top", "0")
+  .style("padding-top", "50vh");
 
-const width = 920;
-const height = 560;
-const earthRadius = 250;
-const cx = width / 2;
-const cy = height + 120;
-const MAX_RENDERED = 1500;
+const sticky = mount.append("div")
+  .style("position", "sticky")
+  .style("top", "0")
+  .style("height", "100vh")
+  .style("width", "100%")
+  .style("margin-top", "0")
+  .style("align-self", "start")
+  .style("overflow", "hidden");
 
-const parseDate = d3.utcParse("%Y-%m-%d");
-const fmt = d3.format(",");
-
-const controls = mount
-  .append("div")
-  .style("display", "flex")
-  .style("gap", "12px")
-  .style("align-items", "center")
-  .style("justify-content", "center")
-  .style("margin", "8px 0 10px 0")
-  .style("flex-wrap", "wrap");
-
-const yearLabel = controls
-  .append("strong")
-  .style("min-width", "64px")
-  .text("----");
-
-const slider = controls
-  .append("input")
-  .attr("type", "range")
-  .style("width", "420px");
-
-// NEW: type filter controls
-const filterWrap = mount
-  .append("div")
-  .style("display", "flex")
-  .style("gap", "14px")
-  .style("justify-content", "center")
-  .style("align-items", "center")
-  .style("margin", "0 0 10px 0")
-  .style("flex-wrap", "wrap");
-
-filterWrap.append("span").style("font-weight", "600").text("Show:");
-
-const TYPE_OPTIONS = [
-  { value: "PAY", label: "Payloads" },
-  { value: "R/B", label: "Rocket bodies" },
-  { value: "DEB", label: "Debris" }
-];
-
-const selectedTypes = new Set(TYPE_OPTIONS.map((d) => d.value));
-
-TYPE_OPTIONS.forEach((opt) => {
-  const lbl = filterWrap.append("label").style("display", "inline-flex").style("gap", "6px").style("align-items", "center");
-  lbl.append("input")
-    .attr("type", "checkbox")
-    .attr("value", opt.value)
-    .property("checked", true)
-    .on("change", (event) => {
-      if (event.target.checked) selectedTypes.add(opt.value);
-      else selectedTypes.delete(opt.value);
-
-      // allow zero selections; render explicit empty state
-      renderYear(+slider.property("value"));
-    });
-
-  lbl.append("span").text(opt.label);
-});
-
-const svg = mount
-  .append("svg")
+const width = 900;
+const height = 900;
+const svg = sticky.append("svg")
   .attr("viewBox", `0 0 ${width} ${height}`)
-  .attr("width", "100%")
-  .style("max-width", `${width}px`)
-  .style("background", "radial-gradient(circle at 50% 15%, #1a2a4f, #0b1020 60%, #080b15)");
+  .style("width", "100%")
+  .style("height", "100%");
 
-const defs = svg.append("defs");
-const grad = defs.append("linearGradient").attr("id", "earthGrad").attr("x1", "0%").attr("y1", "0%").attr("x2", "100%").attr("y2", "100%");
-grad.append("stop").attr("offset", "0%").attr("stop-color", "#2f79ff");
-grad.append("stop").attr("offset", "60%").attr("stop-color", "#1b4fb9");
-grad.append("stop").attr("offset", "100%").attr("stop-color", "#0f2f70");
+const tEarthR = 300;
+const dEarthR = 45;
+const tCy = height + 50;
+const dCy = height / 2;
+const timelineY = 820;
 
-const stars = d3.range(140).map((i) => {
-  const rng = mulberry32(1000 + i);
-  return { x: rng() * width, y: rng() * (height * 0.65), r: rng() * 1.5 + 0.4, a: rng() * 0.6 + 0.2 };
-});
-svg.append("g")
-  .selectAll("circle")
-  .data(stars)
-  .join("circle")
-  .attr("cx", (d) => d.x)
-  .attr("cy", (d) => d.y)
-  .attr("r", (d) => d.r)
-  .attr("fill", "#fff")
-  .attr("opacity", (d) => d.a);
-
-svg.append("circle")
-  .attr("cx", cx)
-  .attr("cy", cy)
-  .attr("r", earthRadius + 12)
-  .attr("fill", "none")
-  .attr("stroke", "#78b5ff")
-  .attr("stroke-opacity", 0.25)
-  .attr("stroke-width", 14);
-
-svg.append("circle")
-  .attr("cx", cx)
-  .attr("cy", cy)
-  .attr("r", earthRadius)
-  .attr("fill", "url(#earthGrad)")
-  .attr("stroke", "#a6d4ff")
-  .attr("stroke-opacity", 0.35)
-  .attr("stroke-width", 2);
-
+const starLayer = svg.append("g");
+const densityLayer = svg.append("g").style("opacity", 0);
+const globalAxisLayer = svg.append("g").style("opacity", 0);
 const satLayer = svg.append("g");
-let satSel = satLayer.selectAll("circle");
+const earthLayer = svg.append("g");
+const uiLayer = svg.append("g");
+const timelineG = uiLayer.append("g").attr("class", "timeline-ui");
 
-const countText = svg.append("text")
-  .attr("x", width / 2)
-  .attr("y", height * 0.35)
-  .attr("text-anchor", "middle")
-  .style("font-size", "48px")
-  .style("font-weight", "800")
-  .style("fill", "#ffffff")
-  .text("0");
+const rScaleGlobal = d3.scalePow().exponent(0.45).domain([0, 40000]).range([dEarthR, width / 2 - 40]);
 
-const countLabel = svg.append("text")
-  .attr("x", width / 2)
-  .attr("y", height * 0.35 + 28)
-  .attr("text-anchor", "middle")
-  .style("font-size", "14px")
-  .style("fill", "#d9e7ff")
-  .text("LEO satellites in selected year");
-
-const renderedNote = svg.append("text")
-  .attr("x", width / 2)
-  .attr("y", height * 0.35 + 48)
-  .attr("text-anchor", "middle")
-  .style("font-size", "11px")
-  .style("fill", "#a9bce0")
-  .text("");
-
-const timelineY = 70;
-const axisG = svg.append("g").attr("transform", `translate(0, ${timelineY})`);
-const innovationsG = svg.append("g");
-
-// Add an in-vis timeline track and moving red pin marker.
-const pinTrack = svg.append("line")
-  .attr("x1", 70)
-  .attr("x2", width - 70)
-  .attr("y1", timelineY)
-  .attr("y2", timelineY)
-  .attr("stroke", "#ffffff")
-  .attr("stroke-opacity", 0.2)
-  .attr("stroke-width", 6)
-  .attr("stroke-linecap", "round");
-
-const pinG = svg.append("g");
-pinG.append("line")
-  .attr("x1", 0)
-  .attr("x2", 0)
-  .attr("y1", timelineY - 36)
-  .attr("y2", timelineY + 6)
-  .attr("stroke", "#ff4d4f")
-  .attr("stroke-width", 2);
-
-pinG.append("circle")
-  .attr("cx", 0)
-  .attr("cy", timelineY - 40)
-  .attr("r", 7)
-  .attr("fill", "#ff4d4f")
-  .attr("stroke", "#ffd6d6")
-  .attr("stroke-width", 1.5);
-
-pinG.append("text")
-  .attr("class", "pin-year")
-  .attr("x", 0)
-  .attr("y", timelineY - 52)
-  .attr("text-anchor", "middle")
-  .style("font-size", "11px")
-  .style("font-weight", "700")
-  .style("fill", "#ffd6d6");
-
-const innovationEvents = [
+const events = [
   { year: 1957, label: "Sputnik 1" },
-  { year: 1962, label: "Telstar era" },
+  { year: 1962, label: "Telstar" },
   { year: 1990, label: "Hubble" },
-  { year: 1997, label: "Iridium" },
-  { year: 2019, label: "Starlink era" }
+  { year: 1998, label: "ISS" },
+  { year: 2019, label: "Starlink" }
 ];
 
-const data = await d3.csv("data/satcat.csv", (d, i) => {
-  const launchDate = parseDate(d.LAUNCH_DATE);
-  const decayDate = d.DECAY_DATE ? parseDate(d.DECAY_DATE) : null;
-  const apogee = toNum(d.APOGEE);
-  const period = toNum(d.PERIOD);
-  const norad = +d.NORAD_CAT_ID || i + 1;
-  const objectType = (d.OBJECT_TYPE || "").trim();
+async function init() {
+  const rawData = await d3.tsv("data/satcat.tsv");
 
-  const isEarth = d.ORBIT_CENTER === "EA";
-  const leoByApogee = Number.isFinite(apogee) && apogee <= 2000;
-  const leoByPeriod = Number.isFinite(period) && period <= 127;
-  const isLeo = isEarth && (leoByApogee || leoByPeriod);
+  const processedData = rawData.map((d, i) => {
+    const alt = +d.Altitude || +d.Perigee || 0;
+    const launchYear = d.Launch_Date ? new Date(d.Launch_Date).getUTCFullYear() : 1957;
+    if (alt <= 0) return null;
 
-  if (!launchDate || !isLeo) return null;
+    const rng = mulberry32(i);
+    return {
+      id: d.NORAD_CAT_ID || i,
+      altitude: alt,
+      launchYear,
+      type: d.Type,
+      decayYear: d.Decay_Date ? new Date(d.Decay_Date).getUTCFullYear() : 9999,
+      baseAngle: (rng() * 2 * Math.PI),
+      drift: (0.02 + rng() * 0.05),
+      relativeAlt: (alt / 2000) * 450,
+      isLeo: alt <= 2000
+    };
+  }).filter(d => d !== null).filter(d => d.type[0] === "P");
 
-  const rng = mulberry32(norad);
-  const baseAngle = Math.PI + rng() * Math.PI;
-  const baseRadius = earthRadius + 35 + rng() * 190;
-  const drift = (0.08 + rng() * 0.20) * (rng() < 0.5 ? -1 : 1);
+  const startYear = 1952;
+  const endYear = 2025;
 
-  return {
-    ...d,
-    objectType,
-    launchDate,
-    decayDate,
-    norad,
-    baseAngle,
-    baseRadius,
-    drift
-  };
-});
+  const satelliteCountScale = d3.scaleLog().domain([1957, endYear]).range([1, processedData.length]).clamp(true);
+  const yearScale = d3.scaleLinear().domain([0.05, 0.65]).range([startYear, endYear]).clamp(true);
+  const xTimeline = d3.scaleLinear().domain([startYear, endYear]).range([100, width - 100]);
 
-const leoData = data.filter(Boolean).sort((a, b) => d3.ascending(a.launchDate, b.launchDate));
-if (!leoData.length) {
-  mount.append("p").text("No LEO records found.");
-  throw new Error("No usable LEO data.");
+  timelineG.append("line")
+    .attr("x1", xTimeline(startYear)).attr("x2", xTimeline(endYear))
+    .attr("y1", timelineY).attr("y2", timelineY)
+    .attr("stroke", "rgba(255,255,255,0.15)").attr("stroke-width", 6).attr("stroke-linecap", "round");
+
+  const innovs = timelineG.selectAll(".innov").data(events).join("g");
+  innovs.append("line")
+    .attr("x1", d => xTimeline(d.year)).attr("x2", d => xTimeline(d.year))
+    .attr("y1", timelineY - 15).attr("y2", timelineY)
+    .attr("stroke", "#ff9a76").attr("stroke-width", 1.5);
+  innovs.append("text")
+    .attr("x", d => xTimeline(d.year)).attr("y", timelineY - 22)
+    .attr("text-anchor", "middle").style("fill", "#ff9a76").style("font-size", "11px")
+    .text(d => d.label);
+
+  const pinG = timelineG.append("g");
+  pinG.append("line").attr("y1", timelineY - 35).attr("y2", timelineY + 5).attr("stroke", "#ff4d4f").attr("stroke-width", 2);
+  pinG.append("circle").attr("cy", timelineY - 38).attr("r", 6).attr("fill", "#ff4d4f");
+  const pinText = pinG.append("text").attr("y", timelineY - 50).attr("text-anchor", "middle").style("fill", "#ff4d4f").style("font-weight", "bold");
+
+  const bins = d3.bin().domain([0, 40000]).thresholds(300)(processedData.map(d => d.altitude));
+  const colorDensity = d3.scaleSequential(d3.interpolateInferno)
+    .domain([0, Math.log10(d3.max(bins, b => b.length / (b.x1 - b.x0) + 1))]);
+
+  densityLayer.selectAll("path").data(bins).join("path")
+    .attr("d", b => d3.arc().startAngle(0).endAngle(2 * Math.PI)({ innerRadius: rScaleGlobal(b.x0), outerRadius: rScaleGlobal(b.x1) }))
+    .attr("fill", b => colorDensity(Math.log10((b.length / (b.x1 - b.x0)) + 1)));
+
+  const yearText = uiLayer.append("text")
+    .attr("x", width / 2).attr("y", 120).attr("text-anchor", "middle")
+    .style("font-size", "100px").style("font-weight", "900")
+    .style("fill", "rgba(255, 255, 255, 0.1)").text(startYear);
+
+  const countText = uiLayer.append("text")
+    .attr("x", width / 2).attr("y", 160).attr("text-anchor", "middle")
+    .style("font-size", "20px").style("fill", "#ffd166").text("0 Satellites");
+
+  const globalAxis = d3.axisLeft(rScaleGlobal).ticks(6).tickFormat(d => d === 0 ? "" : `${d}km`);
+  globalAxisLayer.append("g").call(globalAxis).style("color", "#ff9a76");
+
+  drawStars(starLayer, width, height);
+
+  const earthCircle = earthLayer.append("circle")
+    .attr("cx", width / 2).attr("fill", "#1b4fb9").attr("stroke", "#78b5ff").attr("stroke-width", 2);
+
+  window.addEventListener("scroll", () => {
+    const rect = mount.node().getBoundingClientRect();
+    const scrollP = Math.min(1, Math.max(0, -rect.top / (rect.height - window.innerHeight)));
+    const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
+    const currentYear = Math.floor(yearScale(scrollP));
+
+    yearText.text(currentYear).style("opacity", 1 - (zoomP * 2));
+    pinG.attr("transform", `translate(${xTimeline(currentYear)}, 0)`);
+    pinText.text(currentYear);
+    timelineG.style("opacity", 1 - (zoomP * 1.5));
+
+    const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
+    const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
+
+    earthCircle.attr("cy", currentCy).attr("r", currentR);
+    satLayer.style("opacity", 1 - zoomP);
+
+    densityLayer.style("opacity", zoomP).attr("transform", `translate(${width / 2}, ${currentCy})`);
+    globalAxisLayer.style("opacity", zoomP > 0.4 ? (zoomP - 0.4) * 2 : 0).attr("transform", `translate(${width / 2 - 15}, ${currentCy})`);
+  });
+
+  // sat animation
+  d3.timer((elapsed) => {
+    const t = elapsed / 1000;
+    const rect = mount.node().getBoundingClientRect();
+    const scrollP = Math.min(1, Math.max(0, -rect.top / (rect.height - window.innerHeight)));
+    const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
+    const currentYear = yearScale(scrollP);
+    const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
+    const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
+
+    const targetCount = Math.floor(satelliteCountScale(currentYear));
+    const activeSats = processedData
+      .filter(d => d.launchYear <= currentYear && d.decayYear > currentYear && d.isLeo)
+      .slice(0, targetCount);
+
+    countText.text(`${activeSats.length.toLocaleString()} Satellites`).style("opacity", 1 - zoomP);
+
+    const drawnSats = activeSats.slice(0, Math.max(targetCount / 40, 1));
+    const circles = satLayer.selectAll("circle").data(drawnSats, d => d.id);
+
+    circles.join(
+      enter => enter.append("circle").attr("r", 1.2).attr("fill", "#ffd166").style("opacity", 0)
+        .call(enter => enter.transition().duration(300).style("opacity", 0.8)),
+      update => update,
+      exit => exit.remove()
+    )
+      .attr("cx", d => width / 2 + Math.cos(d.baseAngle + t * d.drift) * (currentR + d.relativeAlt))
+      .attr("cy", d => currentCy + Math.sin(d.baseAngle + t * d.drift) * (currentR + d.relativeAlt));
+  });
 }
 
-const minYear = d3.min(leoData, (d) => d.launchDate.getUTCFullYear());
-const maxYear = Math.min(new Date().getUTCFullYear(), d3.max(leoData, (d) => d.launchDate.getUTCFullYear()));
-
-slider.attr("min", minYear).attr("max", maxYear).attr("step", 1).attr("value", minYear);
-yearLabel.text(minYear);
-
-const xYear = d3.scaleLinear().domain([minYear, maxYear]).range([70, width - 70]);
-axisG.call(d3.axisBottom(xYear).ticks(Math.max(4, Math.floor((maxYear - minYear) / 8))).tickFormat(d3.format("d")));
-axisG.selectAll("text").style("fill", "#dce7ff");
-axisG.selectAll("line,path").style("stroke", "#8ea8d4");
-
-const visibleInnovations = innovationEvents.filter((e) => e.year >= minYear && e.year <= maxYear);
-innovationsG.selectAll("line")
-  .data(visibleInnovations)
-  .join("line")
-  .attr("x1", (d) => xYear(d.year))
-  .attr("x2", (d) => xYear(d.year))
-  .attr("y1", 22)
-  .attr("y2", timelineY - 2)
-  .attr("stroke", "#ff9a76")
-  .attr("stroke-width", 1.2)
-  .attr("opacity", 0.9);
-
-innovationsG.selectAll("circle")
-  .data(visibleInnovations)
-  .join("circle")
-  .attr("cx", (d) => xYear(d.year))
-  .attr("cy", 22)
-  .attr("r", 3.4)
-  .attr("fill", "#ff7a45");
-
-innovationsG.selectAll("text")
-  .data(visibleInnovations)
-  .join("text")
-  .attr("x", (d) => xYear(d.year))
-  .attr("y", 16)
-  .attr("text-anchor", "middle")
-  .style("font-size", "10px")
-  .style("fill", "#ffd7c7")
-  .text((d) => d.label);
-
-let currentActive = [];
-
-function activeAtYear(year) {
-  const t = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
-  return leoData.filter((d) =>
-    selectedTypes.has(d.objectType) &&
-    d.launchDate <= t &&
-    (!d.decayDate || d.decayDate > t)
-  );
+function drawStars(g, w, h) {
+  g.selectAll("circle").data(d3.range(250)).join("circle")
+    .attr("cx", () => Math.random() * w).attr("cy", () => Math.random() * h)
+    .attr("r", () => Math.random() * 1.5).attr("fill", "#fff").attr("opacity", 0.4);
 }
 
-function subsample(arr, maxCount) {
-  if (arr.length <= maxCount) return arr;
-  const step = Math.ceil(arr.length / maxCount);
-  return arr.filter((_, i) => i % step === 0);
-}
-
-function renderYear(year) {
-  const active = activeAtYear(year);
-  currentActive = active;
-
-  const visible = subsample(active, MAX_RENDERED);
-  satSel = satLayer
-    .selectAll("circle")
-    .data(visible, (d) => d.norad)
-    .join(
-      (enter) =>
-        enter
-          .append("circle")
-          .attr("r", 2.2)
-          .attr("fill", "#ffd166")
-          .attr("stroke", "#fff4c7")
-          .attr("stroke-width", 0.3)
-          .attr("opacity", 0.95),
-      (update) => update,
-      (exit) => exit.remove()
-    );
-
-  countText.text(fmt(active.length));
-  renderedNote.text(active.length > MAX_RENDERED ? `showing ${fmt(visible.length)} animated points` : "");
-  yearLabel.text(year);
-
-  // Sync the in-vis red pin with the slider year.
-  const px = xYear(year);
-  pinG.attr("transform", `translate(${px},0)`);
-  pinG.select("text.pin-year").text(year);
-}
-
-slider.on("input", (event) => renderYear(+event.target.value));
-renderYear(minYear);
-
-d3.timer((elapsed) => {
-  if (!currentActive.length) return;
-  const t = elapsed / 1000;
-  const crowdFactor = 1 + Math.min(2, currentActive.length / 3500);
-
-  satSel
-    .attr("cx", (d) => cx + Math.cos(d.baseAngle + t * d.drift * crowdFactor) * d.baseRadius)
-    .attr("cy", (d) => cy + Math.sin(d.baseAngle + t * d.drift * crowdFactor) * d.baseRadius);
-});
-
-function toNum(v) {
-  const n = +v;
-  return Number.isFinite(n) ? n : NaN;
-}
-
-function mulberry32(seed) {
-  let t = seed >>> 0;
+function mulberry32(a) {
   return function () {
-    t += 0x6D2B79F5;
-    let x = Math.imul(t ^ (t >>> 15), 1 | t);
-    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
 }
+
+init();
