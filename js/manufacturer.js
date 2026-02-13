@@ -94,6 +94,7 @@ function loadData() {
   return { ...d, year, manufacturer, state };
     }).filter(d => {
       if (d.year === null) return false;
+      if (d.year === 2026) return false;
       const t = d.Type && typeof d.Type === 'string' ? d.Type.trim().charAt(0).toUpperCase() : null;
       return t === 'P';
     });
