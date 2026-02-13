@@ -116,8 +116,6 @@ async function init() {
   const globalAxis = d3.axisLeft(rScaleGlobal).ticks(6).tickFormat(d => d === 0 ? "" : `${d}km`);
   globalAxisLayer.append("g").call(globalAxis).style("color", "#ff9a76");
 
-  drawStars(starLayer, width, height);
-
   const earthCircle = earthLayer.append("circle")
     .attr("cx", width / 2).attr("fill", "#1b4fb9").attr("stroke", "#78b5ff").attr("stroke-width", 2);
 
@@ -173,11 +171,6 @@ async function init() {
   });
 }
 
-function drawStars(g, w, h) {
-  g.selectAll("circle").data(d3.range(250)).join("circle")
-    .attr("cx", () => Math.random() * w).attr("cy", () => Math.random() * h)
-    .attr("r", () => Math.random() * 1.5).attr("fill", "#fff").attr("opacity", 0.4);
-}
 
 function mulberry32(a) {
   return function () {
