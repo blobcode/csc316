@@ -17,6 +17,8 @@ const LAUNCH_SITE_COORDS = {
   KODAK: [-152.339, 57.435], // Kodiak, Alaska
   WRAS: [-120.61, 34.742], // Western Range (Vandenberg)
   ERAS: [-80.604, 28.608], // Eastern Range (Cape)
+  KWAJ: [167.743, 9.048], // Kwajalein Atoll (USAKA), Marshall Islands
+
 
   // ===== Russia / Kazakhstan =====
   TYMSC: [63.305, 45.965], // Baikonur (Kazakhstan)
