@@ -1,4 +1,9 @@
-import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+﻿import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import { feature } from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
+import {
+  buildRankedLaunchSites,
+  createBarHeightScale,
+} from "./launchmap_shared.js";
 
 const mount = d3.select("#leo-timeline")
   .style("position", "relative")
@@ -28,13 +33,62 @@ const dEarthR = 45;
 const tCy = height + 50;
 const dCy = height / 2;
 const timelineY = 820;
+const globeClipId = "leo-globe-clip";
+
+const defs = svg.append("defs");
+defs.append("clipPath")
+  .attr("id", globeClipId)
+  .append("circle")
+  .attr("cx", width / 2);
+
+defs.append("radialGradient")
+  .attr("id", "leo-earth-glow")
+  .selectAll("stop")
+  .data([
+    { offset: "0%", color: "rgba(186,229,255,0.18)" },
+    { offset: "65%", color: "rgba(80,150,255,0.08)" },
+    { offset: "100%", color: "rgba(80,150,255,0)" },
+  ])
+  .join("stop")
+  .attr("offset", (d) => d.offset)
+  .attr("stop-color", (d) => d.color);
 
 const densityLayer = svg.append("g").style("opacity", 0);
 const globalAxisLayer = svg.append("g").style("opacity", 0);
-const satLayer = svg.append("g");
 const earthLayer = svg.append("g");
+const satLayer = svg.append("g");
 const uiLayer = svg.append("g");
 const timelineG = uiLayer.append("g").attr("class", "timeline-ui");
+
+const earthGlow = earthLayer.append("circle")
+  .attr("cx", width / 2)
+  .attr("fill", "url(#leo-earth-glow)");
+
+const earthCircle = earthLayer.append("circle")
+  .attr("cx", width / 2)
+  .attr("fill", "#1b4fb9")
+  .attr("stroke", "#78b5ff")
+  .attr("stroke-width", 2);
+
+const globeLayer = earthLayer.append("g").attr("class", "globe-layer");
+const globeMapLayer = globeLayer.append("g")
+  .attr("clip-path", `url(#${globeClipId})`);
+const globeGraticule = globeMapLayer.append("path")
+  .attr("fill", "none")
+  .attr("stroke", "rgba(180, 223, 255, 0.28)")
+  .attr("stroke-width", 0.8);
+const globeLand = globeMapLayer.append("path")
+  .attr("fill", "rgba(138, 198, 255, 0.48)")
+  .attr("stroke", "rgba(208, 237, 255, 0.45)")
+  .attr("stroke-width", 0.8);
+const globeShade = globeMapLayer.append("ellipse")
+  .attr("cx", width / 2)
+  .attr("fill", "rgba(3, 11, 25, 0.20)");
+const globeHighlight = globeLayer.append("ellipse")
+  .attr("cx", width / 2)
+  .attr("fill", "rgba(255, 255, 255, 0.07)")
+  .attr("pointer-events", "none");
+const launchBarLayer = globeLayer.append("g").attr("class", "launch-bars");
 
 const rScaleGlobal = d3.scalePow().exponent(0.45).domain([0, 40000]).range([dEarthR, width / 2 - 40]);
 
@@ -46,8 +100,18 @@ const events = [
   { year: 2019, label: "Starlink" }
 ];
 
+const globeProjection = d3.geoOrthographic().precision(0.4).clipAngle(90);
+const globePath = d3.geoPath(globeProjection);
+const graticule = d3.geoGraticule10();
+
 async function init() {
-  const rawData = await d3.tsv("data/satcat.tsv");
+  const [rawData, launchRows, topo] = await Promise.all([
+    d3.tsv("data/satcat.tsv"),
+    d3.csv("data/satcat_with_continent.csv"),
+    d3.json("data/land-110m.json"),
+  ]);
+
+  const land = feature(topo, topo.objects.land);
 
   const processedData = rawData.map((d, i) => {
     const alt = +d.Altitude || +d.Perigee || 0;
@@ -61,12 +125,18 @@ async function init() {
       launchYear,
       type: d.Type,
       decayYear: d.Decay_Date ? new Date(d.Decay_Date).getUTCFullYear() : 9999,
-      baseAngle: (rng() * 2 * Math.PI),
-      drift: (0.02 + rng() * 0.05),
+      baseAngle: rng() * 2 * Math.PI,
+      drift: 0.02 + rng() * 0.05,
       relativeAlt: (alt / 2000) * 450,
-      isLeo: alt <= 2000
+      isLeo: alt <= 2000,
     };
-  }).filter(d => d !== null).filter(d => d.type[0] === "P");
+  }).filter((d) => d !== null).filter((d) => String(d.type ?? "").startsWith("P"));
+
+  const globeSites = buildRankedLaunchSites(launchRows)
+    .filter((d) => !["UNK", "SUBL"].includes(d.site))
+    .filter((d) => d.count > 1)
+    .slice(0, 18);
+  const barLengthScale = createBarHeightScale(globeSites, [0.18, 1]);
 
   const startYear = 1952;
   const endYear = 2025;
@@ -82,26 +152,26 @@ async function init() {
 
   const innovs = timelineG.selectAll(".innov").data(events).join("g");
   innovs.append("line")
-    .attr("x1", d => xTimeline(d.year)).attr("x2", d => xTimeline(d.year))
+    .attr("x1", (d) => xTimeline(d.year)).attr("x2", (d) => xTimeline(d.year))
     .attr("y1", timelineY - 15).attr("y2", timelineY)
     .attr("stroke", "#ff9a76").attr("stroke-width", 1.5);
   innovs.append("text")
-    .attr("x", d => xTimeline(d.year)).attr("y", timelineY - 22)
+    .attr("x", (d) => xTimeline(d.year)).attr("y", timelineY - 22)
     .attr("text-anchor", "middle").style("fill", "#ff9a76").style("font-size", "11px")
-    .text(d => d.label);
+    .text((d) => d.label);
 
   const pinG = timelineG.append("g");
   pinG.append("line").attr("y1", timelineY - 35).attr("y2", timelineY + 5).attr("stroke", "#ff4d4f").attr("stroke-width", 2);
   pinG.append("circle").attr("cy", timelineY - 38).attr("r", 6).attr("fill", "#ff4d4f");
   const pinText = pinG.append("text").attr("y", timelineY - 50).attr("text-anchor", "middle").style("fill", "#ff4d4f").style("font-weight", "bold");
 
-  const bins = d3.bin().domain([0, 40000]).thresholds(300)(processedData.map(d => d.altitude));
+  const bins = d3.bin().domain([0, 40000]).thresholds(300)(processedData.map((d) => d.altitude));
   const colorDensity = d3.scaleSequential(d3.interpolateInferno)
-    .domain([0, Math.log10(d3.max(bins, b => b.length / (b.x1 - b.x0) + 1))]);
+    .domain([0, Math.log10(d3.max(bins, (b) => b.length / (b.x1 - b.x0) + 1))]);
 
   densityLayer.selectAll("path").data(bins).join("path")
-    .attr("d", b => d3.arc().startAngle(0).endAngle(2 * Math.PI)({ innerRadius: rScaleGlobal(b.x0), outerRadius: rScaleGlobal(b.x1) }))
-    .attr("fill", b => colorDensity(Math.log10((b.length / (b.x1 - b.x0)) + 1)));
+    .attr("d", (b) => d3.arc().startAngle(0).endAngle(2 * Math.PI)({ innerRadius: rScaleGlobal(b.x0), outerRadius: rScaleGlobal(b.x1) }))
+    .attr("fill", (b) => colorDensity(Math.log10((b.length / (b.x1 - b.x0)) + 1)));
 
   const yearText = uiLayer.append("text")
     .attr("x", width / 2).attr("y", 120).attr("text-anchor", "middle")
@@ -120,72 +190,218 @@ async function init() {
     .attr("x", 0).attr("y", 100).attr("text-anchor", "middle").attr("opacity", 0)
     .style("font-size", "30px").style("fill", "white").text("Orbital Density 2026");
 
-  const globalAxis = d3.axisLeft(rScaleGlobal).ticks(6).tickFormat(d => d === 0 ? "" : `${d}km`);
+  const globalAxis = d3.axisLeft(rScaleGlobal).ticks(6).tickFormat((d) => d === 0 ? "" : `${d}km`);
   globalAxisLayer.append("g").call(globalAxis).style("color", "#ff9a76");
 
-  const earthCircle = earthLayer.append("circle")
-    .attr("cx", width / 2).attr("fill", "#1b4fb9").attr("stroke", "#78b5ff").attr("stroke-width", 2);
-
-  window.addEventListener("scroll", () => {
-    const rect = mount.node().getBoundingClientRect();
-    const scrollP = Math.min(1, Math.max(0, -rect.top / (rect.height - window.innerHeight)));
-    const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
-    const currentYear = Math.floor(yearScale(scrollP));
-
-    yearText.text(currentYear).style("opacity", 1 - (zoomP * 2));
-    pinG.attr("transform", `translate(${xTimeline(currentYear)}, 0)`);
-    pinText.text(currentYear);
-    timelineG.style("opacity", 1 - (zoomP * 1.5));
-
-    const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
-    const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
-
-    earthCircle.attr("cy", currentCy).attr("r", currentR);
-    satLayer.style("opacity", 1 - zoomP);
-
-    densityLayer.style("opacity", zoomP).attr("transform", `translate(${width / 2}, ${currentCy})`);
-    globalAxisLayer.style("opacity", zoomP > 0.4 ? (zoomP - 0.4) * 2 : 0).attr("transform", `translate(${width / 2 - 15}, ${currentCy})`);
-  });
-
-  // sat animation
-  d3.timer((elapsed) => {
-    const t = elapsed / 1000;
+  function readSceneState() {
     const rect = mount.node().getBoundingClientRect();
     const scrollP = Math.min(1, Math.max(0, -rect.top / (rect.height - window.innerHeight)));
     const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
     const currentYear = yearScale(scrollP);
     const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
     const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
+    const globeOpacity = 1 - d3.easeCubicIn(Math.min(1, zoomP * 1.4));
 
-    const targetCount = Math.floor(satelliteCountScale(currentYear));
+    return {
+      scrollP,
+      zoomP,
+      currentYear,
+      currentCy,
+      currentR,
+      globeOpacity,
+    };
+  }
+
+  function applySceneState(state) {
+    yearText.text(Math.floor(state.currentYear)).style("opacity", Math.max(0, 1 - (state.zoomP * 2)));
+    pinG.attr("transform", `translate(${xTimeline(Math.floor(state.currentYear))}, 0)`);
+    pinText.text(Math.floor(state.currentYear));
+    timelineG.style("opacity", Math.max(0, 1 - (state.zoomP * 1.5)));
+
+    earthGlow.attr("cy", state.currentCy).attr("r", state.currentR * 1.12).style("opacity", state.globeOpacity * 0.9);
+    earthCircle.attr("cy", state.currentCy).attr("r", state.currentR);
+    globeShade.attr("cy", state.currentCy + state.currentR * 0.12)
+      .attr("rx", state.currentR * 0.88)
+      .attr("ry", state.currentR * 0.92)
+      .style("opacity", state.globeOpacity);
+    globeHighlight.attr("cy", state.currentCy - state.currentR * 0.28)
+      .attr("rx", state.currentR * 0.5)
+      .attr("ry", state.currentR * 0.24)
+      .style("opacity", state.globeOpacity * 0.9);
+
+    defs.select(`#${globeClipId} circle`)
+      .attr("cy", state.currentCy)
+      .attr("r", state.currentR);
+
+    satLayer.style("opacity", 1 - state.zoomP);
+    globeLayer.style("opacity", state.globeOpacity);
+
+    densityLayer.style("opacity", state.zoomP).attr("transform", `translate(${width / 2}, ${state.currentCy})`);
+    globalAxisLayer
+      .style("opacity", state.zoomP > 0.4 ? (state.zoomP - 0.4) * 2 : 0)
+      .attr("transform", `translate(${width / 2 - 15}, ${state.currentCy})`);
+  }
+
+  function updateGlobe(elapsed, state) {
+    const centerLon = -25 + (elapsed / 1000) * 2.5;
+    const centerLat = 12;
+    const rotation = [-centerLon, -centerLat, 0];
+
+    globeProjection
+      .translate([width / 2, state.currentCy])
+      .scale(state.currentR)
+      .rotate(rotation);
+
+    globeGraticule.attr("d", globePath(graticule));
+    globeLand.attr("d", globePath(land));
+
+    const visibleBars = globeSites
+      .map((d) => {
+        const centerGeo = [-rotation[0], -rotation[1]];
+        const angularDistance = d3.geoDistance(d.lonLat, centerGeo);
+        if (angularDistance >= Math.PI / 2 - 0.03) return null;
+
+        const projected = globeProjection(d.lonLat);
+        if (!projected) return null;
+
+        const baseX = projected[0];
+        const baseY = projected[1];
+        const radialDx = baseX - width / 2;
+        const radialDy = baseY - state.currentCy;
+        const radialLength = Math.hypot(radialDx, radialDy) || 1;
+        const ux = radialDx / radialLength;
+        const uy = radialDy / radialLength;
+        const barLength = barLengthScale(d.count) * state.currentR * 0.34;
+        const tipX = baseX + ux * barLength;
+        const tipY = baseY + uy * barLength;
+        const widthPx = Math.max(2.5, state.currentR * 0.018);
+        const depthPx = Math.max(2, widthPx * 0.75);
+        const faces = buildBarFaces(baseX, baseY, tipX, tipY, widthPx, depthPx);
+
+        return {
+          ...d,
+          depth: Math.cos(angularDistance),
+          baseX,
+          baseY,
+          tipX,
+          tipY,
+          faces,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => d3.ascending(a.depth, b.depth));
+
+    const bars = launchBarLayer.selectAll("g.globe-bar")
+      .data(visibleBars, (d) => d.site)
+      .join(
+        (enter) => {
+          const g = enter.append("g").attr("class", "globe-bar");
+          g.append("path").attr("class", "bar-side");
+          g.append("path").attr("class", "bar-front");
+          g.append("path").attr("class", "bar-cap");
+          g.append("circle").attr("class", "bar-anchor");
+          return g;
+        },
+        (update) => update,
+        (exit) => exit.remove(),
+      );
+
+    bars.select("path.bar-side")
+      .attr("d", (d) => d.faces.side)
+      .attr("fill", "rgba(191, 135, 23, 0.92)")
+      .attr("stroke", "rgba(146, 101, 14, 0.95)")
+      .attr("stroke-width", 0.6);
+
+    bars.select("path.bar-front")
+      .attr("d", (d) => d.faces.front)
+      .attr("fill", "rgba(242, 193, 76, 0.95)")
+      .attr("stroke", "rgba(185, 138, 18, 0.95)")
+      .attr("stroke-width", 0.7);
+
+    bars.select("path.bar-cap")
+      .attr("d", (d) => d.faces.cap)
+      .attr("fill", "rgba(255, 217, 120, 0.95)")
+      .attr("stroke", "rgba(197, 156, 51, 0.95)")
+      .attr("stroke-width", 0.5);
+
+    bars.select("circle.bar-anchor")
+      .attr("cx", (d) => d.baseX)
+      .attr("cy", (d) => d.baseY)
+      .attr("r", Math.max(1.8, state.currentR * 0.01))
+      .attr("fill", "#ffd166")
+      .attr("opacity", 0.85);
+  }
+
+  window.addEventListener("scroll", () => {
+    applySceneState(readSceneState());
+  });
+
+  applySceneState(readSceneState());
+
+  d3.timer((elapsed) => {
+    const t = elapsed / 1000;
+    const state = readSceneState();
+    applySceneState(state);
+
+    const targetCount = Math.floor(satelliteCountScale(state.currentYear));
     const activeSats = processedData
-      .filter(d => d.launchYear <= currentYear && d.decayYear > currentYear && d.isLeo)
+      .filter((d) => d.launchYear <= state.currentYear && d.decayYear > state.currentYear && d.isLeo)
       .slice(0, targetCount);
 
-    countText.text(`${activeSats.length.toLocaleString()} Satellites`).style("opacity", 1 - zoomP);
+    countText.text(`${activeSats.length.toLocaleString()} Satellites`).style("opacity", 1 - state.zoomP);
     labelText
-      .style("opacity", 1 - (zoomP * 2))
-      .attr("transform", `translate(0, ${-zoomP * 20})`);
+      .style("opacity", Math.max(0, 1 - (state.zoomP * 2)))
+      .attr("transform", `translate(0, ${-state.zoomP * 20})`);
 
     labelTextB
-      .style("opacity", (zoomP - 0.5) * 2)
-      .attr("transform", `translate(0, ${(1 - zoomP) * 20})`);
+      .style("opacity", Math.max(0, (state.zoomP - 0.5) * 2))
+      .attr("transform", `translate(0, ${(1 - state.zoomP) * 20})`);
 
+    updateGlobe(elapsed, state);
 
     const drawnSats = activeSats.slice(0, Math.max(targetCount / 40, 1));
-    const circles = satLayer.selectAll("circle").data(drawnSats, d => d.id);
+    const circles = satLayer.selectAll("circle").data(drawnSats, (d) => d.id);
 
     circles.join(
-      enter => enter.append("circle").attr("r", 1.2).attr("fill", "#ffd166").style("opacity", 0)
-        .call(enter => enter.transition().duration(300).style("opacity", 0.8)),
-      update => update,
-      exit => exit.remove()
+      (enter) => enter.append("circle").attr("r", 1.2).attr("fill", "#ffd166").style("opacity", 0)
+        .call((enter) => enter.transition().duration(300).style("opacity", 0.8)),
+      (update) => update,
+      (exit) => exit.remove(),
     )
-      .attr("cx", d => width / 2 + Math.cos(d.baseAngle + t * d.drift) * (currentR + d.relativeAlt))
-      .attr("cy", d => currentCy + Math.sin(d.baseAngle + t * d.drift) * (currentR + d.relativeAlt));
+      .attr("cx", (d) => width / 2 + Math.cos(d.baseAngle + t * d.drift) * (state.currentR + d.relativeAlt))
+      .attr("cy", (d) => state.currentCy + Math.sin(d.baseAngle + t * d.drift) * (state.currentR + d.relativeAlt));
   });
 }
 
+function buildBarFaces(baseX, baseY, tipX, tipY, widthPx, depthPx) {
+  const dx = tipX - baseX;
+  const dy = tipY - baseY;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const px = -uy * widthPx;
+  const py = ux * widthPx;
+  const offsetX = ux * depthPx + px * 0.35;
+  const offsetY = uy * depthPx + py * 0.35;
+
+  const A = [baseX - px, baseY - py];
+  const B = [baseX + px, baseY + py];
+  const C = [tipX + px, tipY + py];
+  const D = [tipX - px, tipY - py];
+  const B2 = [B[0] + offsetX, B[1] + offsetY];
+  const C2 = [C[0] + offsetX, C[1] + offsetY];
+  const D2 = [D[0] + offsetX, D[1] + offsetY];
+
+  return {
+    front: polygonPath([A, B, C, D]),
+    side: polygonPath([B, B2, C2, C]),
+    cap: polygonPath([D, C, C2, D2]),
+  };
+}
+
+function polygonPath(points) {
+  return `M ${points.map((p) => `${p[0]},${p[1]}`).join(" L ")} Z`;
+}
 
 function mulberry32(a) {
   return function () {
@@ -193,7 +409,7 @@ function mulberry32(a) {
     t = Math.imul(t ^ t >>> 15, t | 1);
     t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  }
+  };
 }
 
 init();
