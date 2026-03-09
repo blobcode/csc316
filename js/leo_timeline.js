@@ -1,6 +1,9 @@
 ﻿import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { feature } from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
-import { buildCumulativeLaunchSiteCounts } from "./launchmap_shared.js";
+import {
+  CONTINENT_LABELS,
+  buildCumulativeLaunchSiteCounts,
+} from "./launchmap_shared.js";
 
 const mount = d3
   .select("#leo-timeline")
@@ -38,7 +41,7 @@ const globeClipId = "leo-globe-clip";
 const AUTO_ROTATION_SPEED = 2.5;
 const DEFAULT_GLOBE_LAT = 12;
 const DEFAULT_GLOBE_LON_OFFSET = -25;
-const MANUAL_RETURN_DELAY = 1800;
+const MANUAL_RETURN_DELAY = 2400;
 const DRAG_LON_SENSITIVITY = 0.28;
 const DRAG_LAT_SENSITIVITY = 0.22;
 const MAX_MANUAL_LAT = 80;
@@ -109,6 +112,9 @@ const globeHighlight = globeLayer
   .attr("cx", width / 2)
   .attr("fill", "rgba(255, 255, 255, 0.07)")
   .attr("pointer-events", "none");
+const continentLabelLayer = globeLayer
+  .append("g")
+  .attr("class", "continent-labels");
 const launchBarLayer = globeLayer.append("g").attr("class", "launch-bars");
 
 const rScaleGlobal = d3
@@ -196,6 +202,8 @@ async function init() {
     displayLat: DEFAULT_GLOBE_LAT,
     manualLon: DEFAULT_GLOBE_LON_OFFSET,
     manualLat: DEFAULT_GLOBE_LAT,
+    autoLonOffset: 0,
+    lastAutoBaseLon: DEFAULT_GLOBE_LON_OFFSET,
     dragging: false,
     pointerId: null,
     lastX: 0,
@@ -283,7 +291,7 @@ async function init() {
     .attr("text-anchor", "middle")
     .style("font-size", "100px")
     .style("font-weight", "900")
-    .style("fill", "rgba(255, 255, 255, 0.1)")
+    .style("fill", "rgba(226, 238, 255, 0.68)")
     .text(startYear);
 
   const countText = uiLayer
@@ -301,7 +309,7 @@ async function init() {
     .attr("y", 100)
     .attr("text-anchor", "middle")
     .style("font-size", "30px")
-    .style("fill", "white")
+    .style("fill", "rgba(226, 238, 255, 0.68)")
     .text("Payloads in orbit 1957-2025");
 
   const labelTextB = uiLayer
@@ -410,11 +418,15 @@ async function init() {
   }
 
   function autoCenterLon(elapsed) {
-    return DEFAULT_GLOBE_LON_OFFSET + (elapsed / 1000) * AUTO_ROTATION_SPEED;
+    return wrapDegrees(
+      DEFAULT_GLOBE_LON_OFFSET + (elapsed / 1000) * AUTO_ROTATION_SPEED,
+    );
   }
 
   function updateGlobe(elapsed, state) {
-    const autoLon = autoCenterLon(elapsed);
+    const autoBaseLon = autoCenterLon(elapsed);
+    rotationState.lastAutoBaseLon = autoBaseLon;
+    const autoLon = wrapDegrees(autoBaseLon + rotationState.autoLonOffset);
     const autoLat = DEFAULT_GLOBE_LAT;
     const now = performance.now();
     const returnToAuto =
@@ -448,13 +460,61 @@ async function init() {
     globeGraticule.attr("d", globePath(graticule));
     globeLand.attr("d", globePath(land));
 
+    const visibleContinentLabels = CONTINENT_LABELS.map((label) => {
+      const angularDistance = d3.geoDistance(label.lonLat, [
+        rotationState.displayLon,
+        rotationState.displayLat,
+      ]);
+      if (angularDistance >= Math.PI / 2 - 0.08) return null;
+
+      const projected = globeProjection(label.lonLat);
+      if (!projected) return null;
+
+      return {
+        ...label,
+        x: projected[0],
+        y: projected[1],
+        depth: Math.cos(angularDistance),
+      };
+    })
+      .filter(Boolean)
+      .sort((a, b) => d3.ascending(a.depth, b.depth));
+
+    continentLabelLayer
+      .selectAll("text.continent-label")
+      .data(visibleContinentLabels, (d) => d.name)
+      .join(
+        (enter) => enter.append("text").attr("class", "continent-label"),
+        (update) => update,
+        (exit) => exit.remove(),
+      )
+      .attr("x", (d) => d.x)
+      .attr("y", (d) => d.y)
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .attr("font-size", Math.max(5, state.currentR * 0.045))
+      .attr("font-weight", 500)
+      .attr("letter-spacing", "0.06em")
+      .attr("fill", "rgba(226, 238, 255, 0.68)")
+      .attr("stroke", "rgba(16, 33, 73, 0.55)")
+      .attr("stroke-width", 2)
+      .attr("paint-order", "stroke")
+      .style("text-transform", "uppercase")
+      .text((d) => d.name);
+
     const resolvedYear = Math.floor(state.currentYear);
-    const activeLaunchSites = resolvedYear < LAUNCH_START_YEAR
-      ? []
-      : (cumulativeSiteCountsByYear.get(Math.min(resolvedYear, endYear)) || []).slice(0, MAX_GLOBE_SITES);
-    const yearMaxCount = resolvedYear < LAUNCH_START_YEAR
-      ? 0
-      : (maxSiteCountByYear.get(Math.min(resolvedYear, endYear)) || 0);
+    const clampedYear = Math.min(resolvedYear, endYear);
+    const activeLaunchSites =
+      resolvedYear < LAUNCH_START_YEAR
+        ? []
+        : (cumulativeSiteCountsByYear.get(clampedYear) || []).slice(
+            0,
+            MAX_GLOBE_SITES,
+          );
+    const yearMaxCount =
+      resolvedYear < LAUNCH_START_YEAR
+        ? 0
+        : maxSiteCountByYear.get(clampedYear) || 0;
     const stabilizedMaxCount = Math.max(
       yearMaxCount,
       globalLaunchSiteMaxCount * BAR_SCALE_STABILITY,
@@ -488,6 +548,7 @@ async function init() {
         const widthPx = Math.max(2.5, state.currentR * 0.018);
         const depthPx = Math.max(2, widthPx * 0.75);
         const faces = buildBarFaces(baseX, baseY, tipX, tipY, widthPx, depthPx);
+        const labelOffset = Math.max(10, state.currentR * 0.028);
 
         return {
           ...d,
@@ -495,6 +556,11 @@ async function init() {
           faces,
           baseX,
           baseY,
+          tipX,
+          tipY,
+          labelX: tipX + ux * labelOffset,
+          labelY: tipY + uy * labelOffset,
+          labelFontSize: Math.max(9, Math.min(14, 9 + barLength * 0.06)),
           isNewlyActive: d.firstActiveYear === resolvedYear,
         };
       })
@@ -506,35 +572,49 @@ async function init() {
       .data(visibleBars, (d) => d.site)
       .join(
         (enter) => {
-          const g = enter.append("g").attr("class", "globe-bar").style("opacity", 0);
+          const g = enter.append("g").attr("class", "globe-bar");
           g.append("path").attr("class", "bar-side");
           g.append("path").attr("class", "bar-front");
           g.append("path").attr("class", "bar-cap");
           g.append("circle").attr("class", "bar-anchor");
-          return g.transition().duration(220).style("opacity", 1).selection();
+          g.append("text").attr("class", "bar-count");
+          return g;
         },
         (update) => update,
-        (exit) => exit.transition().duration(180).style("opacity", 0).remove(),
-      );
+        (exit) => exit.remove(),
+      )
+      .style("opacity", 1);
 
     bars
       .select("path.bar-side")
       .attr("d", (d) => d.faces.side)
-      .attr("fill", (d) => d.isNewlyActive ? "rgba(219, 165, 44, 0.98)" : "rgba(191, 135, 23, 0.92)")
+      .attr("fill", (d) =>
+        d.isNewlyActive
+          ? "rgba(219, 165, 44, 0.98)"
+          : "rgba(191, 135, 23, 0.92)",
+      )
       .attr("stroke", "rgba(146, 101, 14, 0.95)")
       .attr("stroke-width", 0.6);
 
     bars
       .select("path.bar-front")
       .attr("d", (d) => d.faces.front)
-      .attr("fill", (d) => d.isNewlyActive ? "rgba(255, 221, 114, 0.98)" : "rgba(242, 193, 76, 0.95)")
+      .attr("fill", (d) =>
+        d.isNewlyActive
+          ? "rgba(255, 221, 114, 0.98)"
+          : "rgba(242, 193, 76, 0.95)",
+      )
       .attr("stroke", "rgba(185, 138, 18, 0.95)")
       .attr("stroke-width", 0.7);
 
     bars
       .select("path.bar-cap")
       .attr("d", (d) => d.faces.cap)
-      .attr("fill", (d) => d.isNewlyActive ? "rgba(255, 235, 158, 0.98)" : "rgba(255, 217, 120, 0.95)")
+      .attr("fill", (d) =>
+        d.isNewlyActive
+          ? "rgba(255, 235, 158, 0.98)"
+          : "rgba(255, 217, 120, 0.95)",
+      )
       .attr("stroke", "rgba(197, 156, 51, 0.95)")
       .attr("stroke-width", 0.5);
 
@@ -543,8 +623,22 @@ async function init() {
       .attr("cx", (d) => d.baseX)
       .attr("cy", (d) => d.baseY)
       .attr("r", Math.max(1.8, state.currentR * 0.01))
-      .attr("fill", (d) => d.isNewlyActive ? "#fff0b3" : "#ffd166")
-      .attr("opacity", (d) => d.isNewlyActive ? 1 : 0.85);
+      .attr("fill", (d) => (d.isNewlyActive ? "#bcffb3" : "#6bff66"))
+      .attr("opacity", (d) => (d.isNewlyActive ? 0.9 : 0.75));
+
+    bars
+      .select("text.bar-count")
+      .attr("x", (d) => d.labelX)
+      .attr("y", (d) => d.labelY)
+      .attr("text-anchor", (d) => (d.labelX >= width / 2 ? "start" : "end"))
+      .attr("dominant-baseline", "middle")
+      .attr("font-size", (d) => `${d.labelFontSize}px`)
+      .attr("font-weight", 700)
+      .attr("fill", (d) => (d.isNewlyActive ? "#fff1b8" : "#ffd166"))
+      .attr("stroke", "rgba(5, 7, 10, 0.72)")
+      .attr("stroke-width", 1.5)
+      .attr("paint-order", "stroke")
+      .text((d) => d.count.toLocaleString());
   }
 
   svg.on("pointermove", (event) => {
@@ -594,6 +688,9 @@ async function init() {
     if (svg.node().hasPointerCapture(event.pointerId)) {
       svg.node().releasePointerCapture(event.pointerId);
     }
+    rotationState.autoLonOffset = wrapDegrees(
+      rotationState.displayLon - rotationState.lastAutoBaseLon,
+    );
     rotationState.dragging = false;
     rotationState.pointerId = null;
     rotationState.lastInteractionAt = performance.now();
