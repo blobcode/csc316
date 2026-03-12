@@ -9,7 +9,7 @@ const mount = d3
   .select("#leo-timeline")
   .style("position", "relative")
   .style("height", "900vh")
-  .style("background", "#05070a")
+  .style("background", "black")
   .style("margin-top", "0")
   .style("padding-top", "50vh");
 

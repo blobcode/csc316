@@ -21,6 +21,42 @@
   transform-style: preserve-3d; 
 }
 
+.titlecard {
+  width: 100%;
+  background: black;
+  display: flex;
+  height: 100vh;
+}
+
+.title-holder {
+  flex-grow: 1;
+  align-content: center;
+}
+
+.group-holder {
+  flex-grow: 1;
+  display: flex;
+  align-content: center;
+}
+.group-holder img {
+  margin: auto;
+  max-height: 75%;
+}
+
+.group-holder .title {
+  text-align: left;
+  margin-left: 2em;
+}
+
+.title {
+  margin: auto;
+  text-align: center;
+}
+
+.title h1 {
+  font-size: 50pt;
+}
+
 /* The World: Tilted back to lie on the desk */
 .world-plane {
   transform-style: preserve-3d;
