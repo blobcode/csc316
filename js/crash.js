@@ -33,10 +33,11 @@ export default function initCrashViz(containerId = "crash-viz") {
     const margin = { top: 36, right: 30, bottom: 36, left: 60 };
     const width = outerWidth - margin.left - margin.right;
     const height = outerHeight - margin.top - margin.bottom;
-    const lcHeight = Math.min(140, Math.floor(height * 0.38));
+  const lcHeight = Math.min(160, Math.floor(height * 0.38));
     const lcWidth = width;
-    const availForGauge = Math.max(120, height - lcHeight - 20);
-    const radius = Math.min(width / 2.2, availForGauge * 0.9);
+  const availForGauge = Math.max(120, height - lcHeight - 20);
+  const radius = Math.min(width / 2.2, availForGauge * 0.9);
+  const verticalGap = 40; 
 
     const svg = container.append("svg")
       .attr("width", outerWidth)
@@ -83,7 +84,7 @@ export default function initCrashViz(containerId = "crash-viz") {
 
   xAxisG.append('text')
     .attr('x', lcWidth / 2)
-    .attr('y', 36)
+    .attr('y', 44)
     .attr('text-anchor', 'middle')
     .style('fill', '#ddd')
     .attr('fill', '#ddd')
@@ -131,7 +132,7 @@ export default function initCrashViz(containerId = "crash-viz") {
     });
 
   const g = svg.append("g")
-    .attr("transform", `translate(${width / 2}, ${lcHeight + radius + 20})`);
+    .attr("transform", `translate(${width / 2}, ${lcHeight + radius + verticalGap})`);
 
 
   const daysMin = d3.min(parsed, d => d.days);
