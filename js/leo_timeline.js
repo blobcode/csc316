@@ -1,4 +1,4 @@
-﻿import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import { feature } from "https://cdn.jsdelivr.net/npm/topojson-client@3/+esm";
 import {
   CONTINENT_LABELS,
@@ -8,7 +8,7 @@ import {
 const mount = d3
   .select("#leo-timeline")
   .style("position", "relative")
-  .style("height", "900vh")
+  .style("height", "1300vh")
   .style("background", "#05070a")
   .style("margin-top", "0")
   .style("padding-top", "50vh");
@@ -76,6 +76,7 @@ const earthLayer = svg.append("g");
 const satLayer = svg.append("g");
 const uiLayer = svg.append("g");
 const timelineG = uiLayer.append("g").attr("class", "timeline-ui");
+const barChartG = uiLayer.append("g").attr("class", "bar-chart-ui");
 
 const earthGlow = earthLayer
   .append("circle")
@@ -155,6 +156,7 @@ async function init() {
       const rng = mulberry32(i);
       return {
         id: d.NORAD_CAT_ID || i,
+        owner: d.Owner ? d.Owner.trim() : "Unknown",
         altitude: alt,
         launchYear,
         type: d.Type,
@@ -189,7 +191,7 @@ async function init() {
     .clamp(true);
   const yearScale = d3
     .scaleLinear()
-    .domain([0.05, 0.65])
+    .domain([0.05, 0.45])
     .range([startYear, endYear])
     .clamp(true);
   const xTimeline = d3
@@ -212,6 +214,71 @@ async function init() {
   };
 
   let latestSceneState = null;
+
+  // Prepare bar chart groups based on top owners.
+  const ownerCounts = d3.rollup(
+    processedData.filter((d) => d.isLeo && d.decayYear > 2025 && d.launchYear <= 2025),
+    (v) => v.length,
+    (d) => d.owner
+  );
+  
+  const topOwnersMap = Array.from(ownerCounts, ([owner, count]) => ({ owner, count }))
+    .sort((a, b) => d3.descending(a.count, b.count))
+    .slice(0, 10);
+  
+  const topOwnersSet = new Set(topOwnersMap.map((d) => d.owner));
+  
+  processedData.forEach((d) => {
+    d.displayOwner = topOwnersSet.has(d.owner) ? d.owner : "Other";
+  });
+  
+  const categories = [...topOwnersMap.map(d => d.owner), "Other"];
+  const barWidth = (width - 200) / categories.length;
+  const bottomY = height - 100;
+  const maxStackHeight = d3.max(topOwnersMap, d => d.count);
+  const barX = d3.scaleBand()
+    .domain(categories)
+    .range([100, width - 100])
+    .padding(0.2);
+    
+  // Calculate specific stack positions for all potential drawn satellites
+  const ownerStacks = new Map(categories.map(c => [c, 0]));
+  const satsPerRow = Math.floor(barX.bandwidth() / 3); 
+  
+  processedData.forEach((d) => {
+      const g = d.displayOwner;
+      const count = ownerStacks.get(g);
+      d.stackIndex = count;
+      const row = Math.floor(count / satsPerRow);
+      const col = count % satsPerRow;
+      d.barTargetX = barX(g) + col * 3 + 1.5;
+      d.barTargetY = bottomY - row * 3 - 1.5;
+      ownerStacks.set(g, count + 1);
+  });
+
+  const categoryTexts = barChartG.selectAll(".category-label")
+    .data(categories)
+    .join("text")
+    .attr("class", "category-label")
+    .attr("x", d => barX(d) + barX.bandwidth() / 2)
+    .attr("y", bottomY + 25)
+    .attr("text-anchor", "end")
+    .attr("dominant-baseline", "middle")
+    .attr("transform", d => `rotate(-45, ${barX(d) + barX.bandwidth() / 2}, ${bottomY + 25})`)
+    .style("fill", "rgba(226, 238, 255, 0.68)")
+    .style("font-size", "14px")
+    .style("opacity", 0)
+    .text(d => d);
+
+  const barChartTitle = barChartG.append("text")
+    .attr("x", width / 2)
+    .attr("y", 120)
+    .attr("text-anchor", "middle")
+    .style("font-size", "40px")
+    .style("font-weight", "600")
+    .style("fill", "rgba(226, 238, 255, 0.68)")
+    .style("opacity", 0)
+    .text("Satellites by Owner");
 
   timelineG
     .append("line")
@@ -320,7 +387,7 @@ async function init() {
     .attr("opacity", 0)
     .style("font-size", "30px")
     .style("fill", "white")
-    .text("Orbital Density 2026");
+    .text("Orbital Density");
 
   const globalAxis = d3
     .axisLeft(rScaleGlobal)
@@ -334,15 +401,18 @@ async function init() {
       1,
       Math.max(0, -rect.top / (rect.height - window.innerHeight)),
     );
-    const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
+    const zoomP = Math.max(0, Math.min(1, (scrollP - 0.45) / 0.25));
+    const barChartP = Math.max(0, Math.min(1, (scrollP - 0.75) / 0.20));
+    
     const currentYear = yearScale(scrollP);
     const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
     const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
-    const globeOpacity = 1 - d3.easeCubicIn(Math.min(1, zoomP * 1.4));
+    const globeOpacity = Math.max(0, 1 - d3.easeCubicIn(Math.min(1, zoomP * 1.4)));
 
     return {
       scrollP,
       zoomP,
+      barChartP,
       currentYear,
       currentCy,
       currentR,
@@ -368,6 +438,8 @@ async function init() {
       .attr("r", state.currentR * 1.12)
       .style("opacity", state.globeOpacity * 0.9);
     earthCircle.attr("cy", state.currentCy).attr("r", state.currentR);
+    earthCircle.style("opacity", 1 - state.barChartP);
+    
     globeShade
       .attr("cy", state.currentCy + state.currentR * 0.12)
       .attr("rx", state.currentR * 0.88)
@@ -384,15 +456,25 @@ async function init() {
       .attr("cy", state.currentCy)
       .attr("r", state.currentR);
 
-    satLayer.style("opacity", 1 - state.zoomP);
+    // Fade SATs out for density map, and fade back in for the bar chart map
+    let satOpacity = 1 - state.zoomP;
+    if (state.barChartP > 0) {
+       satOpacity = Math.max(satOpacity, state.barChartP);
+    }
+    satLayer.style("opacity", satOpacity);
     globeLayer.style("opacity", state.globeOpacity);
 
+    // Density layers fade out when bar chart appears
     densityLayer
-      .style("opacity", state.zoomP)
+      .style("opacity", state.zoomP * (1 - state.barChartP))
       .attr("transform", `translate(${width / 2}, ${state.currentCy})`);
     globalAxisLayer
-      .style("opacity", state.zoomP > 0.4 ? (state.zoomP - 0.4) * 2 : 0)
+      .style("opacity", (state.zoomP > 0.4 ? (state.zoomP - 0.4) * 2 : 0) * (1 - state.barChartP))
       .attr("transform", `translate(${width / 2 - 15}, ${state.currentCy})`);
+      
+    // Bar Chart
+    categoryTexts.style("opacity", state.barChartP);
+    barChartTitle.style("opacity", state.barChartP);
   }
 
   function getPointerPosition(event) {
@@ -716,31 +798,38 @@ async function init() {
     const state = readSceneState();
     applySceneState(state);
 
-    const targetCount = Math.floor(satelliteCountScale(state.currentYear));
+    const currentYearFixed = state.barChartP > 0 ? 2025 : state.currentYear;
+    const targetCount = Math.floor(satelliteCountScale(currentYearFixed));
     const activeSats = processedData
       .filter(
         (d) =>
-          d.launchYear <= state.currentYear &&
-          d.decayYear > state.currentYear &&
+          d.launchYear <= currentYearFixed &&
+          d.decayYear > currentYearFixed &&
           d.isLeo,
       )
       .slice(0, targetCount);
 
     countText
       .text(`${activeSats.length.toLocaleString()} Satellites`)
-      .style("opacity", 1 - state.zoomP);
+      .style("opacity", (1 - state.zoomP) * (1 - state.barChartP));
+      
+    // Determine overall label text opacity
+    const densityTextOpacity = Math.max(0, (state.zoomP - 0.5) * 2) * (1 - state.barChartP);
     labelText
       .style("opacity", Math.max(0, 1 - state.zoomP * 2))
       .attr("transform", `translate(0, ${-state.zoomP * 20})`);
 
     labelTextB
-      .style("opacity", Math.max(0, (state.zoomP - 0.5) * 2))
+      .style("opacity", densityTextOpacity)
       .attr("transform", `translate(0, ${(1 - state.zoomP) * 20})`);
 
     updateGlobe(elapsed, state);
 
-    const drawnSats = activeSats.slice(0, Math.max(targetCount / 40, 1));
+    // Limit draw to keep smooth
+    const drawnSats = activeSats.slice(0, Math.max(targetCount / 1, 1));
     const circles = satLayer.selectAll("circle").data(drawnSats, (d) => d.id);
+
+    const easing = d3.easeCubicInOut(state.barChartP);
 
     circles
       .join(
@@ -758,18 +847,29 @@ async function init() {
       )
       .attr(
         "cx",
-        (d) =>
-          width / 2 +
-          Math.cos(d.baseAngle + t * d.drift) *
-            (state.currentR + d.relativeAlt),
+        (d) => {
+          const orbitX = width / 2 +
+            Math.cos(d.baseAngle + t * d.drift) *
+              (state.currentR + d.relativeAlt);
+          if (state.barChartP === 0) return orbitX;
+          return d3.interpolateNumber(orbitX, d.barTargetX)(easing);
+        }
       )
       .attr(
         "cy",
-        (d) =>
-          state.currentCy +
-          Math.sin(d.baseAngle + t * d.drift) *
-            (state.currentR + d.relativeAlt),
-      );
+        (d) => {
+          const orbitY = state.currentCy +
+            Math.sin(d.baseAngle + t * d.drift) *
+              (state.currentR + d.relativeAlt);
+          if (state.barChartP === 0) return orbitY;
+          return d3.interpolateNumber(orbitY, d.barTargetY)(easing);
+        }
+      )
+      .attr("fill", (d) => {
+          if (state.barChartP === 0) return "#ffd166";
+          // We can interpolate color towards standard top 10 colors, or keep it #ffd166
+          return "#ffd166";
+      });
   });
 }
 
