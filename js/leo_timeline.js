@@ -23,6 +23,28 @@ const sticky = mount
   .style("align-self", "start")
   .style("overflow", "hidden");
 
+const tooltip = sticky
+  .append("div")
+  .attr("class", "launch-site-tooltip")
+  .style("position", "absolute")
+  .style("left", "0")
+  .style("top", "0")
+  .style("transform", "translate(-9999px, -9999px)")
+  .style("pointer-events", "none")
+  .style("z-index", "5")
+  .style("min-width", "180px")
+  .style("max-width", "260px")
+  .style("padding", "10px 12px")
+  .style("border", "1px solid rgba(255, 209, 102, 0.35)")
+  .style("border-radius", "10px")
+  .style("background", "rgba(4, 10, 22, 0.92)")
+  .style("box-shadow", "0 12px 28px rgba(0, 0, 0, 0.35)")
+  .style("color", "#f8fbff")
+  .style("font-family", "system-ui, sans-serif")
+  .style("font-size", "12px")
+  .style("line-height", "1.35")
+  .style("opacity", "0");
+
 const width = 900;
 const height = 900;
 const svg = sticky
@@ -228,6 +250,7 @@ async function init() {
   let projectedGlobeState = null;
   let lastProjectedRotation = null;
   let lastGlobeGeometryAt = -Infinity;
+  let hoveredLaunchSiteCode = null;
 
   timelineG
     .append("line")
@@ -446,6 +469,11 @@ async function init() {
     globeLayer.style("opacity", state.globeOpacity);
     launchBarLayer.style("opacity", state.barsOpacity);
 
+    if (state.barsOpacity < 0.08) {
+      hoveredLaunchSiteCode = null;
+      renderLaunchTooltip(null);
+    }
+
     densityLayer
       .style("opacity", state.densityOpacity)
       .attr("transform", `translate(${width / 2}, ${state.currentCy})`);
@@ -472,8 +500,40 @@ async function init() {
   function setCursor(isDragging, isHoveringGlobe) {
     svg.style(
       "cursor",
-      isDragging ? "grabbing" : isHoveringGlobe ? "grab" : "default",
+      isDragging
+        ? "grabbing"
+        : hoveredLaunchSiteCode
+          ? "pointer"
+          : isHoveringGlobe
+            ? "grab"
+            : "default",
     );
+  }
+
+  function renderLaunchTooltip(site) {
+    if (!site) {
+      tooltip
+        .style("opacity", "0")
+        .style("transform", "translate(-9999px, -9999px)");
+      return;
+    }
+
+    const bounds = svg.node().getBoundingClientRect();
+    const scaleX = bounds.width / width;
+    const scaleY = bounds.height / height;
+    const isRightSide = site.labelX >= width / 2;
+    const screenX = site.tipX * scaleX + (isRightSide ? 18 : -18);
+    const screenY = site.tipY * scaleY - 10;
+
+    tooltip
+      .style("opacity", "1")
+      .style("transform", `translate(${screenX}px, ${screenY}px)`)
+      .style("transform-origin", isRightSide ? "top left" : "top right")
+      .html(
+        `<div style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#ffd166; margin-bottom:4px;">${site.siteCode}</div>` +
+          `<div style="font-size:14px; font-weight:700; color:#ffffff; margin-bottom:4px;">${site.siteName}</div>` +
+          `<div style="color:rgba(226, 238, 255, 0.82);">${site.country}</div>`,
+      );
   }
 
   function autoCenterLon(elapsed) {
@@ -646,7 +706,17 @@ async function init() {
         (update) => update,
         (exit) => exit.remove(),
       )
-      .style("opacity", 1);
+      .style("opacity", 1)
+      .on("pointerenter", (_, d) => {
+        hoveredLaunchSiteCode = d.site;
+        renderLaunchTooltip(d);
+        setCursor(false, true);
+      })
+      .on("pointerleave", () => {
+        hoveredLaunchSiteCode = null;
+        renderLaunchTooltip(null);
+        setCursor(false, false);
+      });
 
     bars
       .select("path.bar-side")
@@ -702,6 +772,16 @@ async function init() {
       .attr("stroke-width", 1.5)
       .attr("paint-order", "stroke")
       .text((d) => d.count.toLocaleString());
+
+    if (hoveredLaunchSiteCode) {
+      const hoveredSite = visibleBars.find((d) => d.site === hoveredLaunchSiteCode);
+      if (hoveredSite && state.barsOpacity > 0.08) {
+        renderLaunchTooltip(hoveredSite);
+      } else {
+        hoveredLaunchSiteCode = null;
+        renderLaunchTooltip(null);
+      }
+    }
   }
 
   svg.on("pointermove", (event) => {
@@ -765,6 +845,8 @@ async function init() {
   svg.on("pointercancel", endDrag);
   svg.on("pointerleave", () => {
     if (rotationState.dragging) return;
+    hoveredLaunchSiteCode = null;
+    renderLaunchTooltip(null);
     setCursor(false, false);
   });
 
