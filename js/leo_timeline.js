@@ -43,8 +43,107 @@ const tooltip = sticky
   .style("opacity", "0")
   .style("transition", "opacity 0.2s");
 
+const rankingToggle = sticky
+  .append("button")
+  .attr("type", "button")
+  .style("position", "absolute")
+  .style("top", "20px")
+  .style("left", "20px")
+  .style("z-index", "6")
+  .style("padding", "8px 14px")
+  .style("border", "1px solid rgba(255, 209, 102, 0.24)")
+  .style("border-radius", "999px")
+  .style("background", "rgba(9, 16, 32, 0.82)")
+  .style("color", "#f8fbff")
+  .style("font-size", "12px")
+  .style("font-weight", "600")
+  .style("letter-spacing", "0.02em")
+  .style("cursor", "pointer")
+  .style("backdrop-filter", "blur(8px)");
+
+const centerGlobeToggle = sticky
+  .append("button")
+  .attr("type", "button")
+  .style("position", "absolute")
+  .style("top", "58px")
+  .style("left", "20px")
+  .style("z-index", "6")
+  .style("padding", "8px 14px")
+  .style("border", "1px solid rgba(180, 223, 255, 0.2)")
+  .style("border-radius", "999px")
+  .style("background", "rgba(9, 16, 32, 0.82)")
+  .style("color", "#f8fbff")
+  .style("font-size", "12px")
+  .style("font-weight", "600")
+  .style("letter-spacing", "0.02em")
+  .style("cursor", "pointer")
+  .style("backdrop-filter", "blur(8px)");
+
+const hoverHintOverlay = sticky
+  .append("div")
+  .attr("class", "launch-site-helper-note")
+  .style("position", "absolute")
+  .style("left", "20px")
+  .style("bottom", "24px")
+  .style("z-index", "4")
+  .style("pointer-events", "none")
+  .style("color", "rgba(226, 238, 255, 0.56)")
+  .style("font-family", "system-ui, sans-serif")
+  .style("font-size", "12px")
+  .style("letter-spacing", "0.03em")
+  .style("line-height", "7")
+  .style("text-align", "left")
+  .style("opacity", "0")
+  .text("Hover over a bar to see launch site details");
+
 const width = 900;
 const height = 900;
+const DEFAULT_GLOBE_CX = width / 2;
+const CONTROLS_LEFT = 20;
+const CONTROLS_TOP = 20;
+const TOGGLE_STACK_GAP = 8;
+const TOGGLE_HEIGHT = 30;
+const RANKING_PANEL_GAP = 14;
+const CONTROL_BLOCK_WIDTH = 172;
+const HEADER_TITLE_X = CONTROLS_LEFT + CONTROL_BLOCK_WIDTH + 18;
+const HEADER_TITLE_Y = CONTROLS_TOP + 6;
+const HEADER_YEAR_Y = 124;
+const HEADER_COUNT_Y = 166;
+const HELPER_OVERLAY_BOTTOM = 24;
+const CENTERED_SCENE_TOP = 214;
+const CENTERED_SCENE_BOTTOM = 784;
+const RANKING_PANEL_X = CONTROLS_LEFT;
+const RANKING_PANEL_Y =
+  CONTROLS_TOP + TOGGLE_HEIGHT * 2 + TOGGLE_STACK_GAP + RANKING_PANEL_GAP;
+const RANKING_PANEL_WIDTH = 288;
+const RANKING_PANEL_HEIGHT = 308;
+const RANKING_PANEL_HEADER_HEIGHT = 58;
+const RANKING_PANEL_LABEL_WIDTH = 58;
+const RANKING_PANEL_BAR_WIDTH = 150;
+const RANKING_PANEL_VALUE_X = 220;
+const RANKING_ROW_HEIGHT = 24;
+const RANKING_BAR_HEIGHT = 12;
+const CONTENT_PADDING_X = 36;
+
+const titleOverlay = sticky
+  .append("div")
+  .attr("class", "payload-title-overlay")
+  .style("position", "absolute")
+  .style("left", HEADER_TITLE_X + "px")
+  .style("top", HEADER_TITLE_Y + "px")
+  .style("z-index", "4")
+  .style("pointer-events", "none")
+  .style("color", "rgba(226, 238, 255, 0.74)")
+  .style("font-family", "system-ui, sans-serif")
+  .style("font-size", "24px")
+  .style("font-weight", "700")
+  .style("letter-spacing", "0.01em")
+  .style("line-height", "1.1")
+  .style("white-space", "nowrap")
+  .style("opacity", "0")
+  .style("transform", "translate(0, 0)")
+  .text("Payloads in orbit 1957-2025");
+
 const svg = sticky
   .append("svg")
   .attr("viewBox", `0 0 ${width} ${height}`)
@@ -53,7 +152,7 @@ const svg = sticky
   .style("cursor", "grab");
 
 const tEarthR = 300;
-const dEarthR = 45;
+const dEarthR = 34;
 const tCy = height + 50;
 const dCy = height / 2;
 const timelineY = 820;
@@ -75,8 +174,8 @@ const GLOBE_PHASE_END = 0.45;
 const DENSITY_PHASE_START = 0.75;
 const DISPLAY_SCROLL_EASING = 0.14;
 const DENSITY_RING_COUNT = 350;
+const DENSITY_OUTER_RADIUS = 372;
 const POPUP_WINDOW_P = 0.15;
-
 
 const defs = svg.append("defs");
 defs
@@ -145,11 +244,32 @@ const continentLabelLayer = globeLayer
   .attr("class", "continent-labels");
 const launchBarLayer = globeLayer.append("g").attr("class", "launch-bars");
 
+const rankingCard = sticky
+  .append("div")
+  .attr("class", "ranking-panel-card")
+  .style("position", "absolute")
+  .style("left", RANKING_PANEL_X + "px")
+  .style("top", RANKING_PANEL_Y + "px")
+  .style("width", RANKING_PANEL_WIDTH + "px")
+  .style("height", RANKING_PANEL_HEIGHT + "px")
+  .style("pointer-events", "none")
+  .style("opacity", "0")
+  .style("z-index", "4");
+
+const rankingSvg = rankingCard
+  .append("svg")
+  .attr("viewBox", `0 0 ${RANKING_PANEL_WIDTH} ${RANKING_PANEL_HEIGHT}`)
+  .style("width", "100%")
+  .style("height", "100%")
+  .style("display", "block");
+
+const rankingLayer = rankingSvg.append("g").attr("class", "ranking-panel");
+
 const rScaleGlobal = d3
   .scalePow()
   .exponent(0.45)
   .domain([0, 40000])
-  .range([dEarthR, width / 2 - 40]);
+  .range([dEarthR, DENSITY_OUTER_RADIUS]);
 
 const events = [
   {
@@ -182,7 +302,8 @@ const events = [
   },
   {
     targetP: 0.55,
-    annotation: "Over time, satellites are retiring less often. Longer lifespans and delayed disposal mean objects linger in LEO, keeping the region crowded."
+    annotation:
+      "Over time, satellites are retiring less often. Longer lifespans and delayed disposal mean objects linger in LEO, keeping the region crowded.",
   },
   {
     year: 2019,
@@ -193,8 +314,9 @@ const events = [
   },
   {
     targetP: 1,
-    annotation: "85–90% of cataloged objects are in Low Earth Orbit (LEO). This is where critical infrastructure lives: the ISS, Starlink, Earth imaging, and science missions. High utilization means higher collision risk, and unlike GEO, there is no strong incentive to move objects to graveyard orbits."
-  }
+    annotation:
+      "85–90% of cataloged objects are in Low Earth Orbit (LEO). This is where critical infrastructure lives: the ISS, Starlink, Earth imaging, and science missions. High utilization means higher collision risk, and unlike GEO, there is no strong incentive to move objects to graveyard orbits.",
+  },
 ];
 
 const globeProjection = d3.geoOrthographic().precision(0.4).clipAngle(90);
@@ -252,11 +374,13 @@ async function init() {
     .domain([1957, endYear])
     .range([1, processedData.length])
     .clamp(true);
+
   const yearScale = d3
     .scaleLinear()
     .domain([0.05, 0.65])
     .range([startYear, endYear])
     .clamp(true);
+
   const xTimeline = d3
     .scaleLinear()
     .domain([startYear, endYear])
@@ -283,6 +407,258 @@ async function init() {
   let lastVisibleSatelliteYear = null;
   let lastVisibleSatellites = [];
   let hoveredLaunchSiteCode = null;
+  let isRankingPanelVisible = false;
+  let isGlobeCentered = true;
+  let lastRankingPanelKey = null;
+
+  function getLayoutMetrics(state = latestSceneState) {
+    const sceneLeft = CONTENT_PADDING_X;
+    const sceneRight = width - CONTENT_PADDING_X;
+    const sceneWidth = Math.max(280, sceneRight - sceneLeft);
+    const sceneCenterX = width / 2;
+    const centeredGlobeY = (CENTERED_SCENE_TOP + CENTERED_SCENE_BOTTOM) / 2;
+    const storytellingGlobeY = state?.currentCy ?? tCy;
+
+    return {
+      sceneLeft,
+      sceneRight,
+      sceneWidth,
+      headerLeft: 180,
+      headerCenterX: sceneCenterX,
+      globeCenterX: width / 2,
+      globeCenterY: isGlobeCentered ? centeredGlobeY : storytellingGlobeY,
+    };
+  }
+
+  function getGlobeCenterX() {
+    return getLayoutMetrics().globeCenterX;
+  }
+
+  function setRankingToggleLabel() {
+    rankingToggle.text(
+      isRankingPanelVisible ? "Top 10 Ranking: On" : "Top 10 Ranking: Off",
+    );
+  }
+
+  function setCenterGlobeToggleLabel() {
+    centerGlobeToggle.text(
+      isGlobeCentered ? "Center Globe: On" : "Center Globe: Off",
+    );
+  }
+
+  function hideTooltip() {
+    tooltip
+      .style("opacity", "0")
+      .style("transform", "translate(-9999px, -9999px)");
+  }
+
+  function buildLaunchSiteTooltipHtml(site, count = null) {
+    const countMarkup =
+      count === null
+        ? ""
+        : `<div style="margin-top:6px; color:rgba(255, 240, 194, 0.88);">${count.toLocaleString()} cumulative launches</div>`;
+
+    return (
+      `<div style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#ffd166; margin-bottom:4px;">${site.siteCode}</div>` +
+      `<div style="font-size:14px; font-weight:700; color:#ffffff; margin-bottom:4px;">${site.siteName}</div>` +
+      `<div style="color:rgba(226, 238, 255, 0.82);">${site.country}</div>` +
+      countMarkup
+    );
+  }
+
+  function showTooltipAtSvg(svgX, svgY, html, isRightSide = true) {
+    const bounds = svg.node().getBoundingClientRect();
+    const scaleX = bounds.width / width;
+    const scaleY = bounds.height / height;
+    const screenX = svgX * scaleX + (isRightSide ? 18 : -18);
+    const screenY = svgY * scaleY - 10;
+
+    tooltip
+      .style("opacity", "1")
+      .style("transform", `translate(${screenX}px, ${screenY}px)`)
+      .style("transform-origin", isRightSide ? "top left" : "top right")
+      .html(html);
+  }
+
+  function showTooltipAtClient(clientX, clientY, html, isRightSide = true) {
+    const bounds = sticky.node().getBoundingClientRect();
+    const screenX = clientX - bounds.left + (isRightSide ? 18 : -18);
+    const screenY = clientY - bounds.top - 10;
+
+    tooltip
+      .style("opacity", "1")
+      .style("transform", `translate(${screenX}px, ${screenY}px)`)
+      .style("transform-origin", isRightSide ? "top left" : "top right")
+      .html(html);
+  }
+
+  function renderLaunchTooltip(site) {
+    if (!site) {
+      hideTooltip();
+      return;
+    }
+
+    showTooltipAtSvg(
+      site.tipX,
+      site.tipY,
+      buildLaunchSiteTooltipHtml(site, site.count ?? null),
+      site.labelX >= getGlobeCenterX(),
+    );
+  }
+
+  function buildTopLaunchSiteRanking(resolvedYear) {
+    if (resolvedYear < LAUNCH_START_YEAR) return [];
+
+    const clampedYear = Math.min(resolvedYear, endYear);
+    return (cumulativeSiteCountsByYear.get(clampedYear) || [])
+      .slice(0, 10)
+      .slice()
+      .reverse();
+  }
+
+  function updateRankingPanel(state, resolvedYear) {
+    const panelOpacity = isRankingPanelVisible
+      ? Math.max(0, Math.min(state.timelineOpacity * 0.96, state.barsOpacity))
+      : 0;
+
+    rankingCard
+      .style("opacity", String(panelOpacity))
+      .style("pointer-events", isRankingPanelVisible ? "auto" : "none");
+    if (!isRankingPanelVisible) return;
+
+    const rankingKey = `${resolvedYear}:${isRankingPanelVisible}`;
+    if (rankingKey === lastRankingPanelKey) return;
+    lastRankingPanelKey = rankingKey;
+
+    const rankedSites = buildTopLaunchSiteRanking(resolvedYear);
+    const rowHeight = RANKING_ROW_HEIGHT;
+    const xBar = d3
+      .scaleLinear()
+      .domain([0, Math.max(1, globalLaunchSiteMaxCount)])
+      .range([0, RANKING_PANEL_BAR_WIDTH])
+      .clamp(true);
+
+    rankingTitle.text("Top 10 Launch Stations");
+    rankingSubtitle.text(
+      resolvedYear < LAUNCH_START_YEAR
+        ? "No launch data yet"
+        : `Cumulative launches through ${Math.min(resolvedYear, endYear)}`,
+    );
+
+    const rows = rankingRowsLayer
+      .selectAll("g.rank-row")
+      .data(rankedSites, (d) => d.site);
+
+    const rowsEnter = rows.enter().append("g").attr("class", "rank-row");
+    rowsEnter.append("rect").attr("class", "rank-hover-bg");
+    rowsEnter.append("rect").attr("class", "rank-hit");
+    rowsEnter.append("text").attr("class", "rank-label");
+    rowsEnter.append("rect").attr("class", "rank-bar");
+    rowsEnter.append("text").attr("class", "rank-value");
+
+    const rowsMerged = rowsEnter.merge(rows);
+
+    rowsMerged
+      .attr("transform", (_, i) => `translate(0, ${i * rowHeight})`)
+      .style("cursor", "pointer")
+      .on("mousemove", function (event, d) {
+        d3.select(this)
+          .select("rect.rank-hover-bg")
+          .attr("fill", "rgba(255, 209, 102, 0.08)");
+        d3.select(this)
+          .select("rect.rank-bar")
+          .attr("fill", "rgba(255, 221, 114, 0.98)");
+        showTooltipAtClient(
+          event.clientX,
+          event.clientY,
+          buildLaunchSiteTooltipHtml(d, d.count),
+          true,
+        );
+      })
+      .on("mouseleave", function () {
+        d3.select(this)
+          .select("rect.rank-hover-bg")
+          .attr("fill", "rgba(255, 209, 102, 0)");
+        d3.select(this)
+          .select("rect.rank-bar")
+          .attr("fill", "rgba(242, 193, 76, 0.92)");
+        hideTooltip();
+      });
+
+    rowsMerged
+      .select("rect.rank-hover-bg")
+      .attr("x", -6)
+      .attr("y", -2)
+      .attr("rx", 8)
+      .attr("width", RANKING_PANEL_WIDTH - 26)
+      .attr("height", rowHeight - 4)
+      .attr("fill", "rgba(255, 209, 102, 0)");
+
+    rowsMerged
+      .select("rect.rank-hit")
+      .attr("x", -6)
+      .attr("y", -2)
+      .attr("width", RANKING_PANEL_WIDTH - 26)
+      .attr("height", rowHeight - 4)
+      .attr("fill", "transparent");
+
+    rowsMerged
+      .select("text.rank-label")
+      .attr("x", 0)
+      .attr("y", rowHeight / 2)
+      .attr("dominant-baseline", "middle")
+      .style("font-size", "11px")
+      .style("font-weight", "700")
+      .style("letter-spacing", "0.04em")
+      .style("fill", "rgba(226, 238, 255, 0.88)")
+      .text((d) => d.siteCode || d.site);
+
+    rowsMerged
+      .select("rect.rank-bar")
+      .attr("x", RANKING_PANEL_LABEL_WIDTH)
+      .attr("y", (rowHeight - RANKING_BAR_HEIGHT) / 2)
+      .attr("rx", 6)
+      .attr("height", RANKING_BAR_HEIGHT)
+      .attr("width", (d) => xBar(d.count))
+      .attr("fill", "rgba(242, 193, 76, 0.92)")
+      .attr("stroke", "rgba(255, 221, 114, 0.85)")
+      .attr("stroke-width", 0.6);
+
+    rowsMerged
+      .select("text.rank-value")
+      .attr("x", RANKING_PANEL_VALUE_X)
+      .attr("y", rowHeight / 2)
+      .attr("dominant-baseline", "middle")
+      .attr("text-anchor", "end")
+      .style("font-size", "11px")
+      .style("fill", "rgba(255, 240, 194, 0.88)")
+      .text((d) => d.count.toLocaleString());
+
+    rows.exit().remove();
+  }
+
+  setRankingToggleLabel();
+  rankingToggle.on("click", () => {
+    isRankingPanelVisible = !isRankingPanelVisible;
+    lastRankingPanelKey = null;
+    setRankingToggleLabel();
+    if (latestSceneState) {
+      applySceneState(latestSceneState);
+      updateRankingPanel(
+        latestSceneState,
+        Math.floor(latestSceneState.currentYear),
+      );
+    }
+  });
+
+  setCenterGlobeToggleLabel();
+  centerGlobeToggle.on("click", () => {
+    isGlobeCentered = !isGlobeCentered;
+    setCenterGlobeToggleLabel();
+    if (latestSceneState) {
+      applySceneState(latestSceneState);
+    }
+  });
 
   timelineG
     .append("line")
@@ -293,12 +669,15 @@ async function init() {
     .attr("stroke", "rgba(255,255,255,0.15)")
     .attr("stroke-width", 6)
     .attr("stroke-linecap", "round");
-  const timelineEvents = events.filter(d => d.year !== undefined);
 
-  const innovs = timelineG.selectAll(".innov")
+  const timelineEvents = events.filter((d) => d.year !== undefined);
+
+  const innovs = timelineG
+    .selectAll(".innov")
     .data(timelineEvents)
     .join("g")
     .attr("class", "innov");
+
   innovs
     .append("line")
     .attr("x1", (d) => xTimeline(d.year))
@@ -307,6 +686,7 @@ async function init() {
     .attr("y2", timelineY)
     .attr("stroke", "#ff9a76")
     .attr("stroke-width", 1.5);
+
   innovs
     .append("text")
     .attr("x", (d) => xTimeline(d.year))
@@ -323,11 +703,13 @@ async function init() {
     .attr("y2", timelineY + 5)
     .attr("stroke", "#ff4d4f")
     .attr("stroke-width", 2);
+
   pinG
     .append("circle")
     .attr("cy", timelineY - 38)
     .attr("r", 6)
     .attr("fill", "#ff4d4f");
+
   const pinText = pinG
     .append("text")
     .attr("y", timelineY - 50)
@@ -340,13 +722,15 @@ async function init() {
     .domain([0, 40000])
     .thresholds(DENSITY_RING_COUNT)(processedData.map((d) => d.altitude))
     .filter((b) => b.length > 0);
-  const densityArc = d3
-    .arc()
-    .startAngle(0)
-    .endAngle(2 * Math.PI);
-  const maxDensityLog = Math.log10(d3.max(densityBins, b => b.length / (b.x1 - b.x0)) + 1);
 
-  const colorDensity = d3.scaleSequential(d3.interpolateInferno)
+  const densityArc = d3.arc().startAngle(0).endAngle(2 * Math.PI);
+
+  const maxDensityLog = Math.log10(
+    d3.max(densityBins, (b) => b.length / (b.x1 - b.x0)) + 1,
+  );
+
+  const colorDensity = d3
+    .scaleSequential(d3.interpolateInferno)
     .domain([0, maxDensityLog]);
 
   densityLayer
@@ -365,7 +749,7 @@ async function init() {
 
   const yearText = uiLayer
     .append("text")
-    .attr("x", width / 2)
+    .attr("x", HEADER_TITLE_X)
     .attr("y", 120)
     .attr("text-anchor", "middle")
     .style("font-size", "100px")
@@ -375,57 +759,93 @@ async function init() {
 
   const countText = uiLayer
     .append("text")
-    .attr("x", width / 2)
+    .attr("x", HEADER_TITLE_X)
     .attr("y", 160)
     .attr("text-anchor", "middle")
     .style("font-size", "20px")
     .style("fill", "#ffd166")
     .text("0 Satellites");
 
-  const labelText = uiLayer
-    .append("text")
-    .attr("x", 0)
-    .attr("y", 100)
-    .attr("text-anchor", "middle")
-    .style("font-size", "30px")
-    .style("fill", "rgba(226, 238, 255, 0.68)")
-    .text("Payloads in orbit 1957-2025");
-
   const labelTextB = uiLayer
     .append("text")
-    .attr("x", 0)
-    .attr("y", 100)
+    .attr("x", HEADER_TITLE_X)
+    .attr("y", HEADER_TITLE_Y)
     .attr("text-anchor", "middle")
     .attr("opacity", 0)
     .style("font-size", "30px")
     .style("fill", "white")
     .text("Orbital Density 2026");
 
-  const legendG = uiLayer.append("g")
+  rankingLayer
+    .append("rect")
+    .attr("width", RANKING_PANEL_WIDTH)
+    .attr("height", RANKING_PANEL_HEIGHT)
+    .attr("rx", 18)
+    .attr("fill", "rgba(6, 12, 24, 0.74)")
+    .attr("stroke", "rgba(255, 209, 102, 0.18)")
+    .attr("stroke-width", 1);
+
+  const rankingTitle = rankingLayer
+    .append("text")
+    .attr("x", 16)
+    .attr("y", 24)
+    .style("font-size", "16px")
+    .style("font-weight", "700")
+    .style("fill", "rgba(248, 251, 255, 0.96)")
+    .text("Top 10 Launch Stations");
+
+  const rankingSubtitle = rankingLayer
+    .append("text")
+    .attr("x", 16)
+    .attr("y", 43)
+    .style("font-size", "11px")
+    .style("fill", "rgba(226, 238, 255, 0.66)");
+
+  rankingLayer
+    .append("line")
+    .attr("x1", 16)
+    .attr("x2", RANKING_PANEL_WIDTH - 16)
+    .attr("y1", RANKING_PANEL_HEADER_HEIGHT)
+    .attr("y2", RANKING_PANEL_HEADER_HEIGHT)
+    .attr("stroke", "rgba(255, 255, 255, 0.08)")
+    .attr("stroke-width", 1);
+
+  const rankingRowsLayer = rankingLayer
+    .append("g")
+    .attr("transform", `translate(16, ${RANKING_PANEL_HEADER_HEIGHT + 12})`);
+
+  const legendG = uiLayer
+    .append("g")
     .attr("class", "density-legend")
     .attr("transform", `translate(${width - 220}, ${height - 180})`)
     .style("opacity", 0);
 
   const legendGradientId = "density-gradient";
-  const legendGradient = defs.append("linearGradient")
+  const legendGradient = defs
+    .append("linearGradient")
     .attr("id", legendGradientId)
-    .attr("x1", "0%").attr("y1", "0%")
-    .attr("x2", "100%").attr("y2", "0%");
+    .attr("x1", "0%")
+    .attr("y1", "0%")
+    .attr("x2", "100%")
+    .attr("y2", "0%");
 
   const legendSteps = 10;
-  legendGradient.selectAll("stop")
+  legendGradient
+    .selectAll("stop")
     .data(d3.range(legendSteps))
     .join("stop")
-    .attr("offset", d => `${(d / (legendSteps - 1)) * 100}%`)
-    .attr("stop-color", d => d3.interpolateInferno(d / (legendSteps - 1)));
+    .attr("offset", (d) => `${(d / (legendSteps - 1)) * 100}%`)
+    .attr("stop-color", (d) => d3.interpolateInferno(d / (legendSteps - 1)));
 
-  legendG.append("rect")
+  legendG
+    .append("rect")
     .attr("width", 180)
     .attr("height", 12)
     .attr("rx", 4)
     .attr("fill", `url(#${legendGradientId})`);
 
-  legendG.append("text")
+  legendG
+    .append("text")
     .attr("y", -10)
     .style("fill", "rgba(226, 238, 255, 0.8)")
     .style("font-size", "12px")
@@ -434,16 +854,17 @@ async function init() {
 
   const tickValues = [1, 10, 100];
 
-  legendG.selectAll(".legend-tick")
+  legendG
+    .selectAll(".legend-tick")
     .data(tickValues)
     .join("g")
     .attr("class", "legend-tick")
-    .attr("transform", d => {
+    .attr("transform", (d) => {
       const logVal = Math.log10(d + 1);
       const xPos = (logVal / maxDensityLog) * 180;
       return `translate(${xPos}, 0)`;
     })
-    .call(g => {
+    .call((g) => {
       g.append("line")
         .attr("y1", 0)
         .attr("y2", 16)
@@ -455,13 +876,14 @@ async function init() {
         .style("fill", "rgba(226, 238, 255, 0.7)")
         .style("font-size", "10px")
         .style("font-family", "monospace")
-        .text(d => d);
+        .text((d) => d);
     });
 
   const globalAxis = d3
     .axisLeft(rScaleGlobal)
     .ticks(6)
     .tickFormat((d) => (d === 0 ? "" : `${d}km`));
+
   globalAxisLayer.append("g").call(globalAxis).style("color", "#ff9a76");
 
   const popupDiv = sticky.append("div").attr("class", "leo-popup");
@@ -478,12 +900,12 @@ async function init() {
 
   function updateTooltip(data, event) {
     if (!data) {
-      tooltip.style("opacity", "0").style("transform", "translate(-9999px, -9999px)");
+      hideTooltip();
       return;
     }
+
     const [mX, mY] = d3.pointer(event, sticky.node());
     const isRightSide = mX >= width / 2;
-
     const x = mX + (isRightSide ? -180 : 20);
     const y = mY - 40;
 
@@ -516,37 +938,43 @@ async function init() {
   function buildSceneState(scrollP) {
     const zoomP = Math.max(0, (scrollP - 0.65) / 0.35);
     const currentYear = yearScale(scrollP);
-    const currentCy = d3.interpolateNumber(tCy, dCy)(zoomP);
-    const currentR = d3.interpolateNumber(tEarthR, dEarthR)(zoomP);
+    const globeShrinkP = d3.easeCubicOut(zoomP);
+    const currentCy = d3.interpolateNumber(tCy, dCy)(globeShrinkP);
+    const currentR = d3.interpolateNumber(tEarthR, dEarthR)(globeShrinkP);
     const phase = getTransitionPhase(zoomP);
     const handoffP = clamp(
       (zoomP - GLOBE_PHASE_END) / (DENSITY_PHASE_START - GLOBE_PHASE_END),
       0,
       1,
     );
+
     const globeOpacity =
       phase === "globe"
         ? 1
         : phase === "handoff"
           ? 1 - d3.easeCubicInOut(Math.min(1, handoffP * 1.05))
           : 0;
+
     const barsOpacity =
       phase === "globe"
         ? 1
         : 1 - d3.easeCubicIn(clamp((zoomP - GLOBE_PHASE_END) / 0.18, 0, 1));
+
     const satelliteOpacity =
       phase === "globe"
         ? 1
         : 1 - d3.easeCubicIn(clamp((zoomP - 0.5) / 0.26, 0, 1));
+
     const timelineOpacity = 1 - d3.easeCubicIn(clamp(zoomP / 0.58, 0, 1));
-    const densityOpacity = d3.easeCubicOut(clamp((zoomP - 0.48) / 0.26, 0, 1));
+    const densityOpacity = d3.easeCubicOut(clamp((zoomP - 0.44) / 0.3, 0, 1));
     const radialAxisOpacity = d3.easeCubicOut(
-      clamp((zoomP - 0.62) / 0.16, 0, 1),
-    );
-    const densityTitleOpacity = d3.easeCubicOut(
       clamp((zoomP - 0.58) / 0.18, 0, 1),
     );
+    const densityTitleOpacity = d3.easeCubicOut(
+      clamp((zoomP - 0.54) / 0.2, 0, 1),
+    );
     const orbitTitleOpacity = 1 - d3.easeCubicIn(clamp(zoomP / 0.42, 0, 1));
+
     const satelliteDrawRatio =
       phase === "globe"
         ? 0.028
@@ -576,10 +1004,48 @@ async function init() {
 
   function applySceneState(state) {
     latestSceneState = state;
+    const layout = getLayoutMetrics(state);
+    const globeCenterX = layout.globeCenterX;
+    const globeCenterY = layout.globeCenterY;
+
+    const sceneOpacity = Math.min(
+      state.timelineOpacity * 0.92,
+      state.barsOpacity,
+    );
+
+    const controlsOpacity =
+      1 - d3.easeCubicIn(clamp((state.zoomP - 0.6) / 0.2, 0, 1));
 
     yearText
+      .attr("x", layout.headerCenterX)
+      .attr("y", HEADER_YEAR_Y)
       .text(Math.floor(state.currentYear))
       .style("opacity", Math.max(0, state.timelineOpacity * 1.05));
+
+    countText
+      .attr("x", layout.headerCenterX)
+      .attr("y", HEADER_COUNT_Y)
+      .style("opacity", state.timelineOpacity);
+
+    titleOverlay
+      .style("opacity", String(state.orbitTitleOpacity))
+      .style("transform", `translate(0, ${-state.handoffP * 28}px)`);
+
+    labelTextB
+      .attr("x", layout.headerCenterX)
+      .attr("y", HEADER_TITLE_Y)
+      .style("opacity", state.densityTitleOpacity);
+
+    hoverHintOverlay.style("opacity", String(Math.max(0, sceneOpacity * 0.82)));
+
+    rankingToggle
+      .style("opacity", String(controlsOpacity))
+      .style("pointer-events", controlsOpacity < 0.05 ? "none" : "auto");
+
+    centerGlobeToggle
+      .style("opacity", String(controlsOpacity))
+      .style("pointer-events", controlsOpacity < 0.05 ? "none" : "auto");
+
     pinG.attr(
       "transform",
       `translate(${xTimeline(Math.floor(state.currentYear))}, 0)`,
@@ -588,27 +1054,37 @@ async function init() {
     timelineG.style("opacity", state.timelineOpacity);
 
     earthGlow
-      .attr("cy", state.currentCy)
+      .attr("cx", globeCenterX)
+      .attr("cy", globeCenterY)
       .attr("r", state.currentR * 1.12)
       .style(
         "opacity",
         Math.max(state.globeOpacity * 0.72, state.densityOpacity * 0.22),
       );
-    earthCircle.attr("cy", state.currentCy).attr("r", state.currentR);
+
+    earthCircle
+      .attr("cx", globeCenterX)
+      .attr("cy", globeCenterY)
+      .attr("r", state.currentR);
+
     globeShade
-      .attr("cy", state.currentCy + state.currentR * 0.12)
+      .attr("cx", globeCenterX)
+      .attr("cy", globeCenterY + state.currentR * 0.12)
       .attr("rx", state.currentR * 0.88)
       .attr("ry", state.currentR * 0.92)
       .style("opacity", state.globeOpacity);
+
     globeHighlight
-      .attr("cy", state.currentCy - state.currentR * 0.28)
+      .attr("cx", globeCenterX)
+      .attr("cy", globeCenterY - state.currentR * 0.28)
       .attr("rx", state.currentR * 0.5)
       .attr("ry", state.currentR * 0.24)
       .style("opacity", state.globeOpacity * 0.9);
 
     defs
       .select(`#${globeClipId} circle`)
-      .attr("cy", state.currentCy)
+      .attr("cx", globeCenterX)
+      .attr("cy", globeCenterY)
       .attr("r", state.currentR);
 
     satLayer.style("opacity", state.satelliteOpacity);
@@ -618,15 +1094,16 @@ async function init() {
 
     if (state.barsOpacity < 0.08) {
       hoveredLaunchSiteCode = null;
-      updateTooltip(null);
+      hideTooltip();
     }
 
     densityLayer
       .style("opacity", state.densityOpacity)
-      .attr("transform", `translate(${width / 2}, ${state.currentCy})`);
+      .attr("transform", `translate(${globeCenterX}, ${globeCenterY})`);
+
     globalAxisLayer
       .style("opacity", state.radialAxisOpacity)
-      .attr("transform", `translate(${width / 2 - 15}, ${state.currentCy})`);
+      .attr("transform", `translate(${globeCenterX - 15}, ${globeCenterY})`);
   }
 
   function getPointerPosition(event) {
@@ -639,8 +1116,9 @@ async function init() {
 
   function isPointerOnGlobe(point, state) {
     if (!state || state.globeOpacity < 0.08) return false;
-    const dx = point.x - width / 2;
-    const dy = point.y - state.currentCy;
+    const layout = getLayoutMetrics(state);
+    const dx = point.x - layout.globeCenterX;
+    const dy = point.y - layout.globeCenterY;
     return Math.hypot(dx, dy) <= state.currentR;
   }
 
@@ -669,6 +1147,7 @@ async function init() {
     const autoLon = wrapDegrees(autoBaseLon + rotationState.autoLonOffset);
     const autoLat = DEFAULT_GLOBE_LAT;
     const now = performance.now();
+
     const returnToAuto =
       !rotationState.dragging &&
       now - rotationState.lastInteractionAt > MANUAL_RETURN_DELAY;
@@ -680,17 +1159,19 @@ async function init() {
 
     rotationState.displayLon = wrapDegrees(
       rotationState.displayLon +
-      shortestAngleDelta(rotationState.displayLon, rotationState.manualLon) *
-      ROTATION_LERP,
+        shortestAngleDelta(rotationState.displayLon, rotationState.manualLon) *
+          ROTATION_LERP,
     );
+
     rotationState.displayLat = clamp(
       rotationState.displayLat +
-      (rotationState.manualLat - rotationState.displayLat) * ROTATION_LERP,
+        (rotationState.manualLat - rotationState.displayLat) * ROTATION_LERP,
       -MAX_MANUAL_LAT,
       MAX_MANUAL_LAT,
     );
 
-    const globeCenter = [width / 2, state.currentCy];
+    const layout = getLayoutMetrics(state);
+    const globeCenter = [layout.globeCenterX, layout.globeCenterY];
     const visibleCenterGeo = [
       rotationState.displayLon,
       rotationState.displayLat,
@@ -747,17 +1228,22 @@ async function init() {
 
     const resolvedYear = Math.floor(state.currentYear);
     const clampedYear = Math.min(resolvedYear, endYear);
+
     const activeLaunchSites =
       resolvedYear < LAUNCH_START_YEAR
         ? []
         : (cumulativeSiteCountsByYear.get(clampedYear) || []).slice(
-          0,
-          MAX_GLOBE_SITES,
-        );
+            0,
+            MAX_GLOBE_SITES,
+          );
+
     const maxBarHeight = state.currentR * BAR_HEIGHT_MAX_RATIO;
     const barHeightScale = d3
       .scaleSqrt()
-      .domain([BAR_MIN_VISIBLE_COUNT, Math.max(BAR_MIN_VISIBLE_COUNT + 1, globalLaunchSiteMaxCount)])
+      .domain([
+        BAR_MIN_VISIBLE_COUNT,
+        Math.max(BAR_MIN_VISIBLE_COUNT + 1, globalLaunchSiteMaxCount),
+      ])
       .range([0, maxBarHeight])
       .clamp(true);
 
@@ -820,13 +1306,14 @@ async function init() {
         (exit) => exit.remove(),
       )
       .style("opacity", 1)
-      .on("pointerenter", (_, d) => {
+      .on("pointerenter", (event, d) => {
         hoveredLaunchSiteCode = d.site;
-        updateTooltip(d, event);
+        renderLaunchTooltip(d);
         setCursor(false, true);
       })
       .on("pointerleave", () => {
         hoveredLaunchSiteCode = null;
+        hideTooltip();
         setCursor(false, false);
       });
 
@@ -875,7 +1362,9 @@ async function init() {
       .select("text.bar-count")
       .attr("x", (d) => d.labelX)
       .attr("y", (d) => d.labelY)
-      .attr("text-anchor", (d) => (d.labelX >= width / 2 ? "start" : "end"))
+      .attr("text-anchor", (d) =>
+        d.labelX >= globeCenter[0] ? "start" : "end",
+      )
       .attr("dominant-baseline", "middle")
       .attr("font-size", (d) => d.labelFontSize + "px")
       .attr("font-weight", 700)
@@ -885,6 +1374,16 @@ async function init() {
       .attr("paint-order", "stroke")
       .style("display", (d) => (d.showLabel ? null : "none"))
       .text((d) => (d.showLabel ? d.count.toLocaleString() : ""));
+
+    if (hoveredLaunchSiteCode) {
+      const hoveredSite = visibleBars.find((d) => d.site === hoveredLaunchSiteCode);
+      if (hoveredSite && state.barsOpacity > 0.08) {
+        renderLaunchTooltip(hoveredSite);
+      } else {
+        hoveredLaunchSiteCode = null;
+        hideTooltip();
+      }
+    }
   }
 
   svg.on("pointermove", (event) => {
@@ -894,6 +1393,7 @@ async function init() {
       event.preventDefault();
       const dx = point.x - rotationState.lastX;
       const dy = point.y - rotationState.lastY;
+
       rotationState.manualLon = wrapDegrees(
         rotationState.manualLon - dx * DRAG_LON_SENSITIVITY,
       );
@@ -929,11 +1429,14 @@ async function init() {
   });
 
   function endDrag(event) {
-    if (!rotationState.dragging || event.pointerId !== rotationState.pointerId)
+    if (!rotationState.dragging || event.pointerId !== rotationState.pointerId) {
       return;
+    }
+
     if (svg.node().hasPointerCapture(event.pointerId)) {
       svg.node().releasePointerCapture(event.pointerId);
     }
+
     rotationState.autoLonOffset = wrapDegrees(
       rotationState.displayLon - rotationState.lastAutoBaseLon,
     );
@@ -949,7 +1452,7 @@ async function init() {
   svg.on("pointerleave", () => {
     if (rotationState.dragging) return;
     hoveredLaunchSiteCode = null;
-    updateTooltip(null);
+    hideTooltip();
     setCursor(false, false);
   });
 
@@ -963,6 +1466,7 @@ async function init() {
     const now = performance.now();
     const dt = now - lastFrameAt;
     lastFrameAt = now;
+
     const lerp =
       1 - Math.pow(1 - DISPLAY_SCROLL_EASING, Math.max(1, dt / 16.67));
     displayScrollP += (targetScrollP - displayScrollP) * lerp;
@@ -973,6 +1477,7 @@ async function init() {
 
     const resolvedYear = Math.floor(state.currentYear);
     const targetCount = Math.floor(satelliteCountScale(state.currentYear));
+
     if (resolvedYear !== lastVisibleSatelliteYear) {
       lastVisibleSatellites = processedData
         .filter(
@@ -985,12 +1490,11 @@ async function init() {
       lastVisibleSatelliteYear = resolvedYear;
     }
 
+    updateRankingPanel(state, resolvedYear);
+
     countText
       .text(`${lastVisibleSatellites.length.toLocaleString()} Satellites`)
       .style("opacity", state.timelineOpacity);
-    labelText
-      .style("opacity", state.orbitTitleOpacity)
-      .attr("transform", `translate(0, ${-state.handoffP * 28})`);
 
     labelTextB
       .style("opacity", state.densityTitleOpacity)
@@ -1012,18 +1516,19 @@ async function init() {
       }
     }
 
-    const popupOpacity = minPDiff < POPUP_WINDOW_P
-      ? (1 - minPDiff / POPUP_WINDOW_P)
-      : 0;
+    const popupOpacity =
+      minPDiff < POPUP_WINDOW_P ? 1 - minPDiff / POPUP_WINDOW_P : 0;
 
     if (activePopupEvent) {
       popupTitle.text(activePopupEvent.label || "Orbital Overview");
       popupBody.text(activePopupEvent.annotation);
-
       popupDiv.style("opacity", popupOpacity);
     }
 
-    const drawnSats = lastVisibleSatellites.slice(0, Math.max(targetCount / 40, 1));
+    const drawnSats = lastVisibleSatellites.slice(
+      0,
+      Math.max(targetCount / 40, 1),
+    );
     const circles = satLayer.selectAll("circle").data(drawnSats, (d) => d.id);
 
     circles
@@ -1046,19 +1551,21 @@ async function init() {
       .attr(
         "cx",
         (d) =>
-          width / 2 +
+          getGlobeCenterX() +
           Math.cos(d.baseAngle + t * d.drift) *
-          (state.currentR + d.relativeAlt),
+            (state.currentR + d.relativeAlt),
       )
       .attr(
         "cy",
         (d) =>
-          state.currentCy +
+          getLayoutMetrics(state).globeCenterY +
           Math.sin(d.baseAngle + t * d.drift) *
-          (state.currentR + d.relativeAlt),
-      ).on("pointerenter", (event, d) => {
+            (state.currentR + d.relativeAlt),
+      )
+      .on("pointerenter", (event, d) => {
         d3.select(event.currentTarget)
-          .transition().duration(100)
+          .transition()
+          .duration(100)
           .attr("r", 5)
           .attr("fill", "#fff");
 
@@ -1066,7 +1573,8 @@ async function init() {
       })
       .on("pointerleave", (event) => {
         d3.select(event.currentTarget)
-          .transition().duration(100)
+          .transition()
+          .duration(100)
           .attr("r", 1.2)
           .attr("fill", "#ffd166");
 
