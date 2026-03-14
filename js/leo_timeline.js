@@ -156,7 +156,7 @@ async function init() {
       const rng = mulberry32(i);
       return {
         id: d.NORAD_CAT_ID || i,
-        owner: d.Owner ? d.Owner.trim() : "Unknown",
+        satType: d.OBJECT_TYPE ? d.OBJECT_TYPE.trim() : "Unknown",
         altitude: alt,
         launchYear,
         type: d.Type,
@@ -215,45 +215,57 @@ async function init() {
 
   let latestSceneState = null;
 
-  // Prepare bar chart groups based on top owners.
-  const ownerCounts = d3.rollup(
+  // Prepare bar chart groups based on top satellite types.
+  const typeCounts = d3.rollup(
     processedData.filter((d) => d.isLeo && d.decayYear > 2025 && d.launchYear <= 2025),
     (v) => v.length,
-    (d) => d.owner
+    (d) => d.type
   );
   
-  const topOwnersMap = Array.from(ownerCounts, ([owner, count]) => ({ owner, count }))
+  const topTypesMap = Array.from(typeCounts, ([type, count]) => ({ type, count }))
     .sort((a, b) => d3.descending(a.count, b.count))
     .slice(0, 10);
   
-  const topOwnersSet = new Set(topOwnersMap.map((d) => d.owner));
+  const topTypesSet = new Set(topTypesMap.map((d) => d.type));
   
   processedData.forEach((d) => {
-    d.displayOwner = topOwnersSet.has(d.owner) ? d.owner : "Other";
+    d.displayType = topTypesSet.has(d.type) ? d.type : "Other";
   });
   
-  const categories = [...topOwnersMap.map(d => d.owner), "Other"];
+  const categories = [...topTypesMap.map(d => d.type), "Other"];
   const barWidth = (width - 200) / categories.length;
   const bottomY = height - 100;
-  const maxStackHeight = d3.max(topOwnersMap, d => d.count);
+  const maxStackHeight = d3.max(topTypesMap, d => d.count);
   const barX = d3.scaleBand()
     .domain(categories)
     .range([100, width - 100])
     .padding(0.2);
     
   // Calculate specific stack positions for all potential drawn satellites
-  const ownerStacks = new Map(categories.map(c => [c, 0]));
+  const typeStacks = new Map(categories.map(c => [c, 0]));
   const satsPerRow = Math.floor(barX.bandwidth() / 3); 
   
   processedData.forEach((d) => {
-      const g = d.displayOwner;
-      const count = ownerStacks.get(g);
-      d.stackIndex = count;
-      const row = Math.floor(count / satsPerRow);
-      const col = count % satsPerRow;
-      d.barTargetX = barX(g) + col * 3 + 1.5;
-      d.barTargetY = bottomY - row * 3 - 1.5;
-      ownerStacks.set(g, count + 1);
+      const g = d.displayType;
+      const count = typeStacks.get(g);
+
+      // only assign a position to every 10th satellite
+      if (count % 10 === 0) {
+        d.showInBarChart = true;
+
+        const visualCount = count / 10;
+        d.stackIndex = visualCount;
+
+        const row = Math.floor(visualCount / satsPerRow);
+        const col = visualCount % satsPerRow;
+
+        d.barTargetX = barX(g) + col * 3 + 1.5;
+        d.barTargetY = bottomY - row * 3 - 1.5;
+      } else {
+        d.showInBarChart = false;
+      }
+
+      typeStacks.set(g, count + 1);
   });
 
   const categoryTexts = barChartG.selectAll(".category-label")
@@ -278,7 +290,7 @@ async function init() {
     .style("font-weight", "600")
     .style("fill", "rgba(226, 238, 255, 0.68)")
     .style("opacity", 0)
-    .text("Satellites by Owner");
+    .text("Satellites by Type");
 
   timelineG
     .append("line")
@@ -851,7 +863,7 @@ async function init() {
           const orbitX = width / 2 +
             Math.cos(d.baseAngle + t * d.drift) *
               (state.currentR + d.relativeAlt);
-          if (state.barChartP === 0) return orbitX;
+          if (state.barChartP === 0 || !d.showInBarChart) return orbitX;
           return d3.interpolateNumber(orbitX, d.barTargetX)(easing);
         }
       )
@@ -861,14 +873,15 @@ async function init() {
           const orbitY = state.currentCy +
             Math.sin(d.baseAngle + t * d.drift) *
               (state.currentR + d.relativeAlt);
-          if (state.barChartP === 0) return orbitY;
+          if (state.barChartP === 0 || !d.showInBarChart) return orbitY;
           return d3.interpolateNumber(orbitY, d.barTargetY)(easing);
         }
       )
       .attr("fill", (d) => {
-          if (state.barChartP === 0) return "#ffd166";
-          // We can interpolate color towards standard top 10 colors, or keep it #ffd166
           return "#ffd166";
+      })
+      .style("display", (d) => {
+          return (state.barChartP > 0 && !d.showInBarChart) ? "none" : null;
       });
   });
 }
