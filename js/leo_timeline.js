@@ -94,7 +94,6 @@ const hoverHintOverlay = sticky
   .style("line-height", "1.5")
   .style("text-align", "left")
   .style("opacity", "0")
-  // .text("Hover over a bar to see launch site details");
   .html(`
     Hover over a bar to see launch site details<br>
     Scroll down to explore the timeline
@@ -403,6 +402,7 @@ async function init() {
     lastX: 0,
     lastY: 0,
     lastInteractionAt: -Infinity,
+    pauseAuto: false,
   };
 
   let latestSceneState = null;
@@ -1167,6 +1167,7 @@ async function init() {
 
     const returnToAuto =
       !rotationState.dragging &&
+      !rotationState.pauseAuto &&
       now - rotationState.lastInteractionAt > MANUAL_RETURN_DELAY;
 
     if (returnToAuto) {
@@ -1325,11 +1326,13 @@ async function init() {
       .style("opacity", 1)
       .on("pointerenter", (event, d) => {
         hoveredLaunchSiteCode = d.site;
+        rotationState.pauseAuto = true;
         renderLaunchTooltip(d);
         setCursor(false, true);
       })
       .on("pointerleave", () => {
         hoveredLaunchSiteCode = null;
+        rotationState.pauseAuto = false;
         hideTooltip();
         setCursor(false, false);
       });
