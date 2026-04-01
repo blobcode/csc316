@@ -345,6 +345,7 @@ async function init() {
       if (alt <= 0) return null;
 
       const rng = mulberry32(i);
+      const baseAngle = rng() * 2 * Math.PI;
       return {
         id: d.NORAD_CAT_ID || i,
         altitude: alt,
@@ -353,7 +354,8 @@ async function init() {
         decayYear: d.Decay_Date
           ? new Date(d.Decay_Date).getUTCFullYear()
           : 9999,
-        baseAngle: rng() * 2 * Math.PI,
+        baseAngle,
+        orbitAngle: baseAngle,
         drift: 0.02 + rng() * 0.05,
         relativeAlt: (alt / 2000) * 450,
         isLeo: alt <= 2000,
@@ -412,6 +414,7 @@ async function init() {
   let lastVisibleSatelliteYear = null;
   let lastVisibleSatellites = [];
   let hoveredLaunchSiteCode = null;
+  let hoveredSatelliteId = null;
   let isRankingPanelVisible = true;
   let isGlobeCentered = true;
   let lastRankingPanelKey = null;
@@ -1497,6 +1500,14 @@ async function init() {
     displayScrollP += (targetScrollP - displayScrollP) * lerp;
 
     const t = elapsed / 1000;
+
+    // Update satellite orbit angles every frame, except frozen satellite when hovered
+    processedData.forEach((sat) => {
+      if (sat.id !== hoveredSatelliteId) {
+        sat.orbitAngle += (sat.drift * dt) / 1000;
+      }
+    });
+
     const state = buildSceneState(displayScrollP);
     applySceneState(state);
 
@@ -1573,21 +1584,23 @@ async function init() {
         (update) => update,
         (exit) => exit.remove(),
       )
-      .attr(
-        "cx",
-        (d) =>
+      .attr("cx", (d) => {
+        const angle = d.orbitAngle;
+        return (
           getGlobeCenterX() +
-          Math.cos(d.baseAngle + t * d.drift) *
-            (state.currentR + d.relativeAlt),
-      )
-      .attr(
-        "cy",
-        (d) =>
+          Math.cos(angle) * (state.currentR + d.relativeAlt)
+        );
+      })
+      .attr("cy", (d) => {
+        const angle = d.orbitAngle;
+        return (
           getLayoutMetrics(state).globeCenterY +
-          Math.sin(d.baseAngle + t * d.drift) *
-            (state.currentR + d.relativeAlt),
-      )
+          Math.sin(angle) * (state.currentR + d.relativeAlt)
+        );
+      })
       .on("pointerenter", (event, d) => {
+        hoveredSatelliteId = d.id;
+
         d3.select(event.currentTarget)
           .transition()
           .duration(100)
@@ -1596,7 +1609,12 @@ async function init() {
 
         updateTooltip(d, event);
       })
-      .on("pointerleave", (event) => {
+      .on("pointerleave", (event, d) => {
+        if (hoveredSatelliteId === d.id) {
+          hoveredSatelliteId = null;
+          delete d.frozenAngle;
+        }
+
         d3.select(event.currentTarget)
           .transition()
           .duration(100)
