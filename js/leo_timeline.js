@@ -87,19 +87,20 @@ const hoverHintOverlay = sticky
   .style("bottom", "50px")
   .style("z-index", "4")
   .style("pointer-events", "none")
-  .style("color", "rgba(226, 238, 255, 0.56)")
+  .style("color", "rgba(226, 232, 245, 0.56)")
   .style("font-family", "system-ui, sans-serif")
   .style("font-size", "16px")
+  .style("font-weight", "900")
   .style("letter-spacing", "0.03em")
   .style("line-height", "1.5")
   .style("text-align", "left")
   .style("opacity", "0")
   .html(`
-    Hover over a bar to see launch site details<br>
-    Scroll down to explore the timeline
+    Drag the globe to explore more. <br>
+    Hover over a bar to see launch site details.<br>
+    Scroll down to explore the timeline.
   `);
   
-
 const width = 900;
 const height = 900;
 const DEFAULT_GLOBE_CX = width / 2;
