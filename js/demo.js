@@ -1,6 +1,6 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-const demoWidth = 400;
+const demoWidth = 300;
 const demoHeight = 300;
 const centerX = demoWidth / 2;
 const centerY = demoHeight / 2;
@@ -10,9 +10,10 @@ const demoSvg = d3.select("#demo")
   .attr("viewBox", `0 0 ${demoWidth} ${demoHeight}`)
   .style("width", "100%")
   .style("height", "auto")
+    .style("max-width", "400px")
 
 const satG = demoSvg.append("g")
-  .attr("transform", `translate(${centerX + 160}, ${centerY})`) 
+  .attr("transform", `translate(${centerX + 30}, ${centerY})`)
   .style("cursor", "pointer");
 
 const satDot = satG.append("circle")
@@ -28,7 +29,7 @@ const demoLabel = demoSvg.append("text")
   .style("font-family", "system-ui, sans-serif")
   .style("font-size", "14px")
   .style("font-weight", "bold")
-  .text("Hover the satellite to inspect");
+  .text("");
 
 satG.on("mouseenter", () => {
   satDot.transition().duration(100).attr("r", 8).attr("fill", "#fff");
@@ -44,6 +45,6 @@ satG.on("mouseenter", () => {
     `);
 }).on("mouseleave", () => {
   satDot.transition().duration(200).attr("r", 4).attr("fill", "#ffd166");
-  demoLabel.text("Hover the satellite to inspect").style("fill", "#fff");
+  demoLabel.text("").style("fill", "#fff");
   demoSvg.selectAll(".stats").remove();
 });
