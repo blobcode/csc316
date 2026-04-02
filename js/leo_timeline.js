@@ -100,7 +100,7 @@ const hoverHintOverlay = sticky
     Hover over a bar to see launch site details.<br>
     Scroll down to explore the timeline.
   `);
-  
+
 const width = 900;
 const height = 900;
 const DEFAULT_GLOBE_CX = width / 2;
@@ -235,15 +235,6 @@ const globeLand = globeMapLayer
   .attr("fill", "rgba(138, 198, 255, 0.48)")
   .attr("stroke", "rgba(208, 237, 255, 0.45)")
   .attr("stroke-width", 0.8);
-const globeShade = globeMapLayer
-  .append("ellipse")
-  .attr("cx", width / 2)
-  .attr("fill", "rgba(3, 11, 25, 0.20)");
-const globeHighlight = globeLayer
-  .append("ellipse")
-  .attr("cx", width / 2)
-  .attr("fill", "rgba(255, 255, 255, 0.07)")
-  .attr("pointer-events", "none");
 const continentLabelLayer = globeLayer
   .append("g")
   .attr("class", "continent-labels");
@@ -1088,19 +1079,6 @@ async function init() {
       .attr("cy", globeCenterY)
       .attr("r", state.currentR);
 
-    globeShade
-      .attr("cx", globeCenterX)
-      .attr("cy", globeCenterY + state.currentR * 0.12)
-      .attr("rx", state.currentR * 0.88)
-      .attr("ry", state.currentR * 0.92)
-      .style("opacity", state.globeOpacity);
-
-    globeHighlight
-      .attr("cx", globeCenterX)
-      .attr("cy", globeCenterY - state.currentR * 0.28)
-      .attr("rx", state.currentR * 0.5)
-      .attr("ry", state.currentR * 0.24)
-      .style("opacity", state.globeOpacity * 0.9);
 
     defs
       .select(`#${globeClipId} circle`)
@@ -1181,13 +1159,13 @@ async function init() {
 
     rotationState.displayLon = wrapDegrees(
       rotationState.displayLon +
-        shortestAngleDelta(rotationState.displayLon, rotationState.manualLon) *
-          ROTATION_LERP,
+      shortestAngleDelta(rotationState.displayLon, rotationState.manualLon) *
+      ROTATION_LERP,
     );
 
     rotationState.displayLat = clamp(
       rotationState.displayLat +
-        (rotationState.manualLat - rotationState.displayLat) * ROTATION_LERP,
+      (rotationState.manualLat - rotationState.displayLat) * ROTATION_LERP,
       -MAX_MANUAL_LAT,
       MAX_MANUAL_LAT,
     );
@@ -1255,9 +1233,9 @@ async function init() {
       resolvedYear < LAUNCH_START_YEAR
         ? []
         : (cumulativeSiteCountsByYear.get(clampedYear) || []).slice(
-            0,
-            MAX_GLOBE_SITES,
-          );
+          0,
+          MAX_GLOBE_SITES,
+        );
 
     const maxBarHeight = state.currentR * BAR_HEIGHT_MAX_RATIO;
     const barHeightScale = d3
