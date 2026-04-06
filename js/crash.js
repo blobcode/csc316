@@ -1,21 +1,8 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
-const data = [
-  { date: "2018-01-01", label: "1 Jan 2018", days: 164 },
-  { date: "2019-01-01", label: "1 Jan 2019", days: 119 },
-  { date: "2020-01-01", label: "1 Jan 2020", days: 102 },
-  { date: "2021-01-01", label: "1 Jan 2021", days: 62 },
-  { date: "2022-01-01", label: "1 Jan 2022", days: 26 },
-  { date: "2023-01-01", label: "1 Jan 2023", days: 11 },
-  { date: "2024-01-01", label: "1 Jan 2024", days: 6.8 },
-  { date: "2025-01-01", label: "1 Jan 2025", days: 6.8 },
-  { date: "2025-06-25", label: "25 Jun 2025", days: 5.5 },
-  { date: "2026-01-26", label: "26 Jan 2026", days: 3.8 }
-];
-
 let initialized = false;
 
-export default function initCrashViz(containerId = "crash-viz") {
+export default async function initCrashViz(containerId = "crash-viz") {
   if (initialized) return;
 
   const container = d3.select(`#${containerId}`);
@@ -23,6 +10,12 @@ export default function initCrashViz(containerId = "crash-viz") {
 
   container.selectAll("*").remove();
   container.style("position", "relative");
+
+  const data = await d3.csv('./data/crash_data.csv', d => ({
+    date: d.date,
+    label: d.label,
+    days: +d.days
+  }));
 
   container.append('div')
     .attr('class', 'crash-hint')
@@ -51,6 +44,7 @@ export default function initCrashViz(containerId = "crash-viz") {
     try {
       await playSequence();
     } catch (e) {
+
     }
     isPlaying = false;
     playBtn.attr('disabled', null).text('Play');
@@ -162,12 +156,10 @@ export default function initCrashViz(containerId = "crash-viz") {
     .on('mouseover', function(event, d) {
       try { updateGauge(d, false); } catch (e) {}
       d3.select(this).transition().duration(120).attr('r', 6);
-      // highlight this point on hover
       try { const idx = parsed.indexOf(d); if (idx >= 0) highlightPoint(idx); } catch (e) {}
     })
     .on('mouseout', function() {
       d3.select(this).transition().duration(120).attr('r', 4.5);
-      // clear highlight when not playing
       try { if (!isPlaying) clearHighlight(); } catch (e) {}
     });
 
@@ -296,7 +288,6 @@ export default function initCrashViz(containerId = "crash-viz") {
 
   async function playSequence() {
     for (let i = 0; i < parsed.length; i++) {
-      // highlight the current point in the line chart
       try { highlightPoint(i); } catch (e) {}
       updateGauge(parsed[i], i === 0);
       await new Promise(r => setTimeout(r, 1400));
@@ -304,12 +295,9 @@ export default function initCrashViz(containerId = "crash-viz") {
         await new Promise(r => setTimeout(r, 150));
       }
     }
-    // keep final point highlighted when finished (or remove if you prefer)
-    // clearHighlight();
   }
 
   updateGauge(parsed[0], true);
-  // initial highlight for the first point
   try { highlightPoint(0); } catch (e) {}
   initialized = true;
 }
